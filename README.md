@@ -1,2 +1,3 @@
 # nodes_at_home
-my iot projekt for my home baes on arduino and esp8266
+* my iot project for my home based on arduino and esp8266
+* take a look into subprojects
