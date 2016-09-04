@@ -48,7 +48,7 @@ class MaxMatrix
     void shiftOutMatrix ( int startCol );
 
     void printSprite ( int col, const byte* sprite );
-    void printEmptyCol ( int col );
+    int printEmptyCol ( int col );
     int printChar ( char c, int atColumn );
     
     void init();

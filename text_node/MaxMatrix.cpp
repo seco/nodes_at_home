@@ -112,11 +112,13 @@ void MaxMatrix::printSprite ( int col, const byte* sprite ) {
 
 }
 
-void MaxMatrix::printEmptyCol ( int col ) {
+int MaxMatrix::printEmptyCol ( int col ) {
   
   pixelBuffer [col] = 0;
   
   maxCol++;
+  
+  return 1;
   
 }
 
