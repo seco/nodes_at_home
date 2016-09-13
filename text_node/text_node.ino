@@ -12,10 +12,13 @@
 #include <Ticker.h>
 #include <Time.h>
 
-#include <ArduinoJson.h>
+#include <JsonStreamingParser.h>
+#include <JsonListener.h>
 
 #include "MaxMatrix.h"
 #include "Sprites.h"
+
+// #include "json_test.h"
 
 using namespace ios;
 
@@ -26,6 +29,12 @@ using namespace ios;
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
 #define VERSION PSTR("V0.01 (30.08.2016)")
+
+// ------------------------------------------------------------------------------------------------------------------------------------------
+
+PrintEx printExSerial = Serial;
+#define MY_SERIAL printExSerial
+// #define MY_SERIAL Serial
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -86,11 +95,11 @@ Ticker ticker;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-//static byte SNTP_server_IP[]    = { 192, 168, 2, 1 }; // ntpd@mauzi
+static byte SNTP_server_IP[]    = { 192, 168, 2, 1 }; // ntpd@mauzi
 //static byte SNTP_server_IP[]    = { 192, 168, 2, 8 }; // ntpd@glutexo
 
 //byte SNTP_server_IP[]    = { 192, 43, 244, 18};   // time.nist.gov
-byte SNTP_server_IP[]    = { 130,149,17,21};      // ntps1-0.cs.tu-berlin.de xxx
+// byte SNTP_server_IP[]    = { 130,149,17,21};      // ntps1-0.cs.tu-berlin.de xxx
 //byte SNTP_server_IP[]    = { 192,53,103,108};     // ptbtime1.ptb.de
 //byte SNTP_server_IP[]    = { 64, 90, 182, 55 };   // nist1-ny.ustiming.org
 //byte SNTP_server_IP[]    = { 66, 27, 60, 10 };    // ntp2d.mcc.ac.uk
@@ -111,10 +120,16 @@ time_t current_time, last_time;
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
 const int LED_PIN = 5;
+boolean led_state;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-HTTPClient http;
+const int DAY_TIME_PERIOD = 10;
+int display_counter = 100;
+int display_type = 2;
+const int MAX_DISPLAY_TYPE = 4;
+
+boolean show_time = false;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -128,7 +143,7 @@ void setup () {
 
     Serial.begin ( 9600 );
     delay ( 2 );
-    Serial.println ( "start" ); // first serial print!
+    MY_SERIAL.println ( "start" ); // first MY_SERIAL print!
     
     // Timer1.initialize ( 50 ); // 50 µs, prescale is set by lib
     // Timer1.attachInterrupt ( doInterrupt );
@@ -139,8 +154,8 @@ void setup () {
     pinMode ( LED_PIN, OUTPUT );
     digitalWrite ( LED_PIN, HIGH );
 
-    Serial.print ( "connecting " );
-    Serial.println ( ssid );
+    MY_SERIAL.print ( "connecting " );
+    MY_SERIAL.println ( ssid );
     
     clear_matrix ();
     m.init ();
@@ -151,10 +166,10 @@ void setup () {
     while ( WiFi.status() != WL_CONNECTED ) {
         delay ( 500 );
         matrix_append_text ( "." );
-        Serial.print ( '.' );
+        MY_SERIAL.print ( '.' );
     }
     matrix_append_text ( "connected" );
-    Serial << "connected ";
+    MY_SERIAL << "connected ";
     
     server.on ( "/", handle_root );
     server.on ( "/debug", handle_debug );
@@ -167,18 +182,18 @@ void setup () {
     
     matrix_append_text ( " with ip " );
     matrix_append_text ( WiFi.localIP ().toString ().c_str () );
-    Serial << "with ip ";
-    Serial.println ( WiFi.localIP () );
+    MY_SERIAL << "with ip ";
+    MY_SERIAL.println ( WiFi.localIP () );
     
     udp.begin ( 8888 ); // for connect to time server
     setSyncInterval ( SYNC_INTERVAL );
     setSyncProvider ( getNtpTime );
-    Serial.print ( " now: " );
+    MY_SERIAL.print ( " now: " );
     digitalClockDisplay ( now () );
     
     server.begin(); // start web server
     
-    delay ( 20000 );
+    delay ( 10000 );
     clear_matrix ();
   
     digitalWrite ( LED_PIN, HIGH );
@@ -187,37 +202,37 @@ void setup () {
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-const char* http_request ( const char* url ) {
+// const char* http_request ( const char* url ) {
     
-    const char* result = NULL;
+    // const char* result = NULL;
     
-    Serial << "[HTTP] Start Http Client" << endl;
+    // MY_SERIAL << "[HTTP] Start Http Client url=" << url << endl;
     
-    http.begin ( url );
-    int http_code = http.GET (); // send a GET request
-    Serial << "[HTTP] http_code=" << http_code << endl;
+    // http.begin ( url );
+    // int http_code = http.GET (); // send a GET request
+    // MY_SERIAL << "[HTTP] http_code=" << http_code << endl;
     
-    if ( http_code == HTTP_CODE_OK ) {
+    // if ( http_code == HTTP_CODE_OK ) {
         
-        int len = http.getSize ();
-        Serial << "payload size=" << len << endl;
+        // int len = http.getSize ();
+        // MY_SERIAL << "payload size=" << len << endl;
         
-        String payload = http.getString ();
-        Serial.println ( payload );
-        result = payload.c_str ();
+        // String payload = http.getString ();
+        // MY_SERIAL.println ( payload );
+        // result = payload.c_str ();
                 
-        Serial.print ( "[HTTP] connection closed or file end.\n" );
+        // MY_SERIAL.println ( "[HTTP] connection closed or file end." );
         
-    }
-    else {
-        Serial << "[HTTP] hhtp request with http_code=" << http_code << " (" << http.errorToString ( http_code ) << ")" << endl;
-    }
+    // }
+    // else {
+        // MY_SERIAL << "[HTTP] hhtp request with http_code=" << http_code << " (" << http.errorToString ( http_code ) << ")" << endl;
+    // }
     
-    http.end ();
+    // http.end ();
     
-    return result;
+    // return result;
     
-}
+// }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
     
@@ -234,8 +249,8 @@ void handle_root() {
   <body>\
     <h1>Hello from ESP8266!</h1>\
     <p>Uptime    : %02d:%02d:%02d</p>\
-    <p>Date      : %02d:%02d</p>\
-    <p>Time      : %02d:%02d:%04d</p>\
+    <p>Date      : %02d.%02d.%04d</p>\
+    <p>Time      : %02d:%02d:%02d</p>\
     <p>IP-Address: %s</p>\
     <p>Channel   : %d</p>\
   </body>\
@@ -247,6 +262,9 @@ void handle_root() {
 	int sec = millis() / 1000;
 	int min = sec / 60;
 	int hr = min / 60;
+    
+    // char ip [] = "999.999.999.999";
+    // strcpy ( ip, WiFi.localIP ().toString ().c_str () );
     
 	snprintf ( buf, buf_len, html_template, 
                hr, min % 60, sec % 60, 
@@ -298,37 +316,8 @@ void handle_debug () {
             tag = server.arg ( "tag" );
         }
     }
-    Serial.printf ( "[DEBUG] tag=%s\n", tag.c_str () );
+    MY_SERIAL.printf ( "[DEBUG] tag=%s\n", tag.c_str () );
     
-    // const char* httpResponse = http_request ( "http://192.168.2.8/website/weather_test/current_weather_test.html" );
-    const char* httpResponse = "\
-{\
-    \"coord\":{\"lon\":13.54,\"lat\":52.65},\
-    \"weather\":[{\"id\":800,\"main\":\"Clear\",\"description\":\"clear sky\",\"icon\":\"01d\"}],\
-    \"base\":\"stations\",\
-    \"main\":{\"temp\":296.48,\"pressure\":1017,\"humidity\":52,\"temp_min\":294.15,\"temp_max\":303.15},\
-    \"visibility\":10000,\
-    \"wind\":{\"speed\":4.1,\"deg\":290},\
-    \"clouds\":{\"all\":0},\
-    \"dt\":1472891622,\
-    \"sys\":{\"type\":1,\"id\":4892,\"message\":0.0347,\"country\":\"DE\",\"sunrise\":1472876456,\"sunset\":1472924870},\
-    \"id\":2804759,\
-    \"name\":\"Zepernick\",\
-    \"cod\":200\
-}\
-";
-    DynamicJsonBuffer jsonBuffer;
-    // StaticJsonBuffer<2000> jsonBuffer;
-    JsonObject& jsonRoot = jsonBuffer.parseObject ( httpResponse );
-    if ( jsonRoot.success () ) {
-        const char* data = jsonRoot [tag];
-        Serial.printf ( "[DEBUG] %s=%s\n", tag.c_str (), data );
-        snprintf ( buf, buf_len, "%s\njson: %s=%s\n", buf, tag.c_str (), data );
-    }
-    else {
-        Serial.println ( "parseObject () failed") ;
-    }
-
     server.send ( HTTP_CODE_OK, "text/plain", buf );
 
 }
@@ -353,7 +342,7 @@ void handle_display () {
     if ( server.args () > 0 ) {
         if ( server.hasArg ( "text" ) ) {
             String text = server.arg ( "text" );
-            Serial << "received text=" << text << endl;
+            MY_SERIAL << "received text=" << text << endl;
             clear_matrix ();
             matrix_append_text ( text.c_str () );
             text_duration = -1;
@@ -371,13 +360,13 @@ void handle_display () {
         if ( server.hasArg ( "ticks" ) ) {
             String ticks_str = server.arg ( "ticks" );
             int ticks = atoi ( ticks_str.c_str () );
-            Serial << "received ticks=" << ticks_str << endl;
+            MY_SERIAL << "received ticks=" << ticks_str << endl;
             shift_delay = ticks;
         }
         if ( server.hasArg ( "brightness" ) ) {
             String brightness_str = server.arg ( "brightness" );
             int intensity = atoi ( brightness_str.c_str () );
-            Serial << "received intensity=" << brightness_str << endl;
+            MY_SERIAL << "received intensity=" << brightness_str << endl;
             m.setIntensity ( intensity );
         }
 
@@ -530,7 +519,7 @@ void matrix_append_text ( const String str ) {
 
 /*
 
-    UTF-8 Umalute
+    UTF-8 Umlaute
     
     Ä       C384
     Ö       C396
@@ -589,14 +578,16 @@ void matrix_append_text ( const char* text ) {
     
     if ( insert_column > NUM_DISPLAY_COLS ) {
         
+        clear_all_commands ();
+        
         int col1 = 0;
         int col2 = insert_column - NUM_DISPLAY_COLS;
         init_command ( 1, HORIZONTAL_DIRECTION, col1, col2, 2 );
-        init_command ( 2, HORIZONTAL_DIRECTION, col2, col1, 1 );
+        init_command ( 2, HORIZONTAL_DIRECTION, col2, col2, 3 );
+        init_command ( 3, HORIZONTAL_DIRECTION, col2, col1, 4 );
+        init_command ( 4, HORIZONTAL_DIRECTION, col1, col1, 1 );
         
         start_command ( 1 );
-        
-        cmd_index++;
 
     }
     
@@ -626,7 +617,7 @@ void matrix_show_time ( time_t time ) {
     char buf [len];
     
     sprintf ( buf, "%02d%c%02d", hour ( time ), second ( time ) % 2 == 0 ? ':' : ' ', minute ( time ) );
-    // Serial.println ( buf );
+    // MY_SERIAL.println ( buf );
 
     insert_column = 21;
     
@@ -645,7 +636,7 @@ void matrix_show_date ( time_t time ) {
     char buf [len];
     
     sprintf ( buf, "%02d.%02d.%04d", day ( time ), month ( time ), year ( time ) );
-    // Serial.println ( buf );
+    // MY_SERIAL.println ( buf );
 
     insert_column = 9;
     
@@ -779,16 +770,16 @@ unsigned long recvNtpTime () {
 void digitalClockDisplay ( time_t time ){
     
   // digital clock display of the time
-  Serial.print ( hour ( time ) );
+  MY_SERIAL.print ( hour ( time ) );
   printDigits ( minute ( time ) );
   printDigits ( second ( time ) );
-  Serial.print ( " " );
-  Serial.print ( day ( time ));
-  Serial.print ( "." );
-  Serial.print ( month ( time ) );
-  Serial.print ( "." );
-  Serial.print ( year ( time ) ); 
-  Serial.println (); 
+  MY_SERIAL.print ( " " );
+  MY_SERIAL.print ( day ( time ));
+  MY_SERIAL.print ( "." );
+  MY_SERIAL.print ( month ( time ) );
+  MY_SERIAL.print ( "." );
+  MY_SERIAL.print ( year ( time ) ); 
+  MY_SERIAL.println (); 
   
 }
 
@@ -797,59 +788,202 @@ void digitalClockDisplay ( time_t time ){
 void printDigits ( int digits ) {
     
   // utility for digital clock display: prints preceding colon and leading 0
-  Serial.print ( ":" );
-  if ( digits < 10 ) Serial.print ( '0' );
-  Serial.print ( digits );
+  MY_SERIAL.print ( ":" );
+  if ( digits < 10 ) MY_SERIAL.print ( '0' );
+  MY_SERIAL.print ( digits );
   
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
+const long WEATHER_REQUEST_PERIOD = 1L * 60L * 60L * 1000L; // every hour
+#define JSON_PARSER_DEBUG false
+
+void requestJsonDataFromUrl ( const char* url, JsonListener* jsonListener ) {
+    
+    MY_SERIAL << "[HTTP] Start Http Client url=" << url << endl;
+    
+    JsonStreamingParser jsonParser;
+    jsonParser.setListener ( jsonListener );
+    
+    HTTPClient http;
+
+    http.begin ( url );
+    int http_code = http.GET (); // send a GET request
+    MY_SERIAL << "[HTTP] http_code=" << http_code << endl;
+    
+    if ( http_code == HTTP_CODE_OK ) {
+        
+        int payloadSize = http.getSize ();
+        MY_SERIAL << "[HTTP] payload size=" << payloadSize << endl;
+        
+        // create buffer for read
+        uint8_t buf [128] = { 0 };
+
+        // get tcp stream
+        WiFiClient* stream = http.getStreamPtr ();
+
+        // read all data from server
+        while ( http.connected () && ( payloadSize > 0 || payloadSize == -1 ) ) {
+            
+            // get available data size
+            size_t size = stream->available ();
+            // MY_SERIAL.printf ( "size=%d\n", size );            
+
+            if ( size ) {
+                
+                // read up to 128 byte
+                int readBytesLen = stream->readBytes ( buf, ( ( size > sizeof ( buf ) ) ? sizeof ( buf ) : size ) );
+
+                // write it to Serial
+                // Serial.write ( buf, readBytesLen );
+                for ( int i = 0; i < readBytesLen; i++ ) {
+                    jsonParser.parse ( buf [i] );
+                }
+
+                if ( payloadSize > 0 ) {
+                    payloadSize -= readBytesLen;
+                }
+                
+            }
+            delay ( 1 );
+        }
+
+        MY_SERIAL.println ( "[HTTP] connection closed or file end." );
+        
+    }
+    else {
+        MY_SERIAL << "[HTTP] hhtp request with http_code=" << http_code << " (" << http.errorToString ( http_code ) << ")" << endl;
+    }
+    
+    http.end ();
+    
+}
+
+char temperature [10];
+char pressure [10];
+char humidity [10];
+
+char lastKey [20];
+
+bool inMain;
+bool isTempValue;
+bool isPressureValue;
+bool isHumidityValue;
+
+class CurrentWeatherJsonListener: public JsonListener {
+    
+    public:
+    
+        void whitespace ( char c ) {
+            // noop
+        }
+      
+        void startDocument () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[CurrentWeatherJsonListener] startDocument ()" );
+            
+            strcpy ( temperature, "" );
+            strcpy ( pressure, "" );
+            strcpy ( humidity, "" );
+            
+            inMain = false;
+            
+            strcpy ( lastKey, "" );
+            
+        }
+
+        void endDocument () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[CurrentWeatherJsonListener] endDocument ()" );
+
+            // this is never called, why ever
+            // snprintf ( weatherTextCache, sizeof ( weatherTextCache ), "min %f C max %f C", minTemp, maxTemp );
+            
+        }
+
+        void startArray () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[CurrentWeatherJsonListener] startArray ()" );
+
+        }
+
+        void endArray () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[CurrentWeatherJsonListener] endArray ()" );
+
+        }
+
+        void startObject () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.printf ( "\n[CurrentWeatherJsonListener] startObject () lastKey=%s\n", lastKey );
+
+            inMain = false;
+            if ( strcmp ( lastKey, "main" ) == 0 ) inMain = true;
+
+        }
+        
+        void endObject () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[CurrentWeatherJsonListener] endObject ()" );
+
+        }
+
+        void key ( String key ) {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( "[CurrentWeatherJsonListener] key () key=" );
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( key );
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( ": " );
+            
+            strcpy ( lastKey, key.c_str () );
+            
+            if ( inMain ) {
+                isTempValue = false;
+                isHumidityValue = false;
+                isPressureValue = false;
+                if ( key == "temp" ) isTempValue = true;
+                if ( key == "humidity" ) isHumidityValue = true;
+                if ( key == "pressure" ) isPressureValue = true;
+            }
+                        
+        }
+
+        void value ( String value ) {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( "[CurrentWeatherJsonListener] value () value=" );
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( value );
+            
+            if ( isTempValue ) strcpy ( temperature, value.c_str () );
+            if ( isHumidityValue ) strcpy ( humidity, value.c_str () );
+            if ( isPressureValue ) strcpy ( pressure, value.c_str () );
+
+        }
+
+};
+
+CurrentWeatherJsonListener currentWeatherJsonListener;
+
 static char currentWeatherTextCache [200] = { 0 };
-long lastWeatherHttpRequest = 0L;
-const long WEATHER_REQUEST_PERIOD = 1L * 60L * 60L * 1000L;
+long lastCurrentWeatherHttpRequest = 0L;
 
 char* getCurrentWeatherText () {
     
-    if ( strlen ( currentWeatherTextCache ) == 0 || lastWeatherHttpRequest + WEATHER_REQUEST_PERIOD < millis () ) {
+
+    if ( strlen ( currentWeatherTextCache ) == 0 || lastCurrentWeatherHttpRequest + WEATHER_REQUEST_PERIOD < millis () ) {
         
-        Serial.println ( "request new current weather report" );
+        MY_SERIAL.println ( "[WEATHER] request new current weather report" );
         
-        // const char* httpResponse = http_request ( "http://192.168.2.8/website/weather_test/current_weather_test.html" );
-        const char* httpResponse = http_request ( 
-                "http://api.openweathermap.org/data/2.5/weather?id=2804759&appid=29ab3e72b07b4dd4c3aca6db6ff3290d&lang=de&units=metric" );
-        const char* httpResponseTest = "\
-    {\
-        \"coord\":{\"lon\":13.54,\"lat\":52.65},\
-        \"weather\":[{\"id\":800,\"main\":\"Clear\",\"description\":\"clear sky\",\"icon\":\"01d\"}],\
-        \"base\":\"stations\",\
-        \"main\":{\"temp\":296.48,\"pressure\":1017,\"humidity\":52,\"temp_min\":294.15,\"temp_max\":303.15},\
-        \"visibility\":10000,\
-        \"wind\":{\"speed\":4.1,\"deg\":290},\
-        \"clouds\":{\"all\":0},\
-        \"dt\":1472891622,\
-        \"sys\":{\"type\":1,\"id\":4892,\"message\":0.0347,\"country\":\"DE\",\"sunrise\":1472876456,\"sunset\":1472924870},\
-        \"id\":2804759,\
-        \"name\":\"Zepernick\",\
-        \"cod\":200\
-    }\
-    ";
-        // DynamicJsonBuffer jsonBuffer;
-        StaticJsonBuffer<2000> jsonBuffer;
-        JsonObject& jsonRoot = jsonBuffer.parseObject ( httpResponse );
-        if ( jsonRoot.success () ) {
-            const char* temperature = jsonRoot ["main"]["temp"];
-            const char* humidity = jsonRoot ["main"]["humidity"];
-            const char* pressure = jsonRoot ["main"]["pressure"];
-            snprintf ( currentWeatherTextCache, sizeof ( currentWeatherTextCache ), "%sC %s%% %shPa", temperature, humidity, pressure );
-            Serial.printf ( "[WEATHER] temperature=%s humidity=%s pressure=%s\n", temperature, humidity, pressure );
-        }
-        else {
-            snprintf ( currentWeatherTextCache, sizeof ( currentWeatherTextCache ), "error parsing json response" );
-            Serial.println ( "[WEATHER] parseObject () failed") ;
-        }
+        // const char* url = "http://192.168.2.8/website/weather_test/current_weather_test.html";
+        const char* url = "http://api.openweathermap.org/data/2.5/weather?id=2804759&appid=29ab3e72b07b4dd4c3aca6db6ff3290d&lang=en&units=metric";
         
-        lastWeatherHttpRequest = millis ();
+        // snprintf ( currentWeatherTextCache, sizeof ( currentWeatherTextCache ), "there is no weather today" );
+        
+        requestJsonDataFromUrl ( url, &currentWeatherJsonListener );
+        
+        snprintf ( currentWeatherTextCache, sizeof ( currentWeatherTextCache ), "%sC %s%% %shPa", temperature, humidity, pressure );
+        MY_SERIAL.printf ( "[WEATHER] temperature=%s humidity=%s pressure=%s\n", temperature, humidity, pressure );
+
+        lastCurrentWeatherHttpRequest = millis ();
         
     }
     
@@ -857,16 +991,141 @@ char* getCurrentWeatherText () {
 
 }
 
+
+float minTemp;
+float maxTemp; 
+bool inList;
+int listIndex;
+float temp;
+
+class ForecastWeatherJsonListener: public JsonListener {
+    
+    public:
+    
+        void whitespace ( char c ) {
+            // noop
+        }
+      
+        void startDocument () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[ForecastWeatherJsonListener] startDocument ()" );
+            
+            minTemp = 999.9;
+            maxTemp = -999.9; 
+            inList = false;
+            inMain = false; // ???
+            
+        }
+
+        void endDocument () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[ForecastWeatherJsonListener] endDocument ()" );
+
+            // this is never called, why ever
+            // snprintf ( weatherTextCache, sizeof ( weatherTextCache ), "min %f C max %f C", minTemp, maxTemp );
+            
+        }
+
+        void startArray () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[ForecastWeatherJsonListener] startArray ()" );
+
+        }
+
+        void endArray () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[ForecastWeatherJsonListener] endArray ()" );
+            if ( inList ) inList = false;
+
+        }
+
+        void startObject () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[ForecastWeatherJsonListener] startObject ()" );
+            if ( inList ) temp = 0.0;
+
+        }
+        
+        void endObject () {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( "[ForecastWeatherJsonListener] endObject ()" );
+
+        }
+
+        void key ( String key ) {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( "[ForecastWeatherJsonListener] key () key=" );
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( key );
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( ": " );
+            
+            if ( key == "list" ) {
+                inList = true;
+                listIndex = 0;
+            }
+
+            if ( inList && key == "main" ) inMain = true;
+            
+            isTempValue = false;
+            if ( inMain && listIndex < 8 && key == "temp" ) isTempValue = true;
+            
+        }
+
+        void value ( String value ) {
+            
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.print ( "[ForecastWeatherJsonListener] value () value=" );
+            if ( JSON_PARSER_DEBUG ) MY_SERIAL.println ( value );
+            
+            if ( isTempValue ) {
+                
+                temp = atof ( value.c_str () );
+                
+                listIndex++;
+                if ( temp < minTemp ) minTemp = temp;
+                if ( temp > maxTemp ) maxTemp = temp;
+                
+            }
+
+        }
+
+};
+
+ForecastWeatherJsonListener forecastWeatherJsonListener;
+
+static char forecastWeatherTextCache [200] = { 0 };
+long lastForecastWeatherHttpRequest = 0L;
+
+char* getForecastWeatherText () {
+    
+    if ( strlen ( forecastWeatherTextCache ) == 0 || lastForecastWeatherHttpRequest + WEATHER_REQUEST_PERIOD < millis () ) {
+        
+        MY_SERIAL.println ( "[WEATHER] request new forecast weather report" );
+        
+        // const char* url = "http://192.168.2.8/website/weather_test/forecast_weather_test.html";
+        const char* url = "http://api.openweathermap.org/data/2.5/forecast?id=2804759&appid=29ab3e72b07b4dd4c3aca6db6ff3290d&lang=en&units=metric";
+        
+        // snprintf ( forecastWeatherTextCache, sizeof ( forecastWeatherTextCache ), "there is no forecast today" );
+        
+        requestJsonDataFromUrl ( url, &forecastWeatherJsonListener );
+        
+        char minTempStr [10];
+        dtostrf ( minTemp, 4, 1, minTempStr );
+
+        char maxTempStr [10];
+        dtostrf ( maxTemp, 4, 1, maxTempStr );
+
+        MY_SERIAL.printf ( "[WEATHER] min=%sC max=%sC\n", minTempStr, maxTempStr );
+        sprintf ( forecastWeatherTextCache, "min %sC max %sC", minTempStr, maxTempStr );
+            
+
+        lastForecastWeatherHttpRequest = millis ();
+        
+    }
+    
+    return forecastWeatherTextCache;
+
+}
+
 // ------------------------------------------------------------------------------------------------------------------------------------------
-
-boolean led_state;
-
-const int DAY_TIME_PERIOD = 10;
-int display_counter = 100;
-int display_type = 0;
-const int MAX_DISPLAY_TYPE = 3;
-
-boolean show_time = false;
 
 void loop() {
     
@@ -875,7 +1134,7 @@ void loop() {
     current_time = now ();
     // tick every second
     if ( second ( current_time ) != second ( last_time ) ) {
-
+        
         led_state = !led_state;
         digitalWrite ( LED_PIN, led_state );
         
@@ -903,7 +1162,12 @@ void loop() {
                         insert_column = 13;
                         matrix_append_text ( dayStr ( weekday ( current_time ) ) );
                         break;
-                    case 3: // current weather
+                    case 3: // weather
+                        insert_column = 0;
+                        matrix_append_text ( getForecastWeatherText () );
+                        text_duration = -1;
+                        break;
+                    case 4: // forecast
                         insert_column = 0;
                         matrix_append_text ( getCurrentWeatherText () );
                         text_duration = -1;
