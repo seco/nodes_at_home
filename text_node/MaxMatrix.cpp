@@ -16,7 +16,6 @@ MaxMatrix::MaxMatrix ( byte _data, byte _load, byte _clock, byte _num ) {
 	clock = _clock;
 	num = _num;
 	for ( int i = 0; i < NUM_BUF_COLS; i++) pixelBuffer [i] = 0;
-    maxCol = 0;
 
 }
 
@@ -108,17 +107,13 @@ void MaxMatrix::printSprite ( int col, const byte* sprite ) {
       pixelBuffer [c] = sprite [i + 2];
   }
   
-  maxCol += w;
-
 }
 
 int MaxMatrix::printEmptyCol ( int col ) {
   
-  pixelBuffer [col] = 0;
-  
-  maxCol++;
-  
-  return 1;
+    if ( col >= 0 && col < NUM_BUF_COLS ) pixelBuffer [col] = 0;
+
+    return 1;
   
 }
 
@@ -129,7 +124,7 @@ int MaxMatrix::printChar ( char c, int atColumn ) {
     if ( atColumn < NUM_BUF_COLS ) {
         if ( c >= 32 ) {
             c -= 32;
-            if ( c < 102 ) {
+            if ( c < 103 ) {
                 const byte* sprite = SPRITE + 7*c;
                 printSprite ( insertCol, sprite );
                 insertCol += sprite [0];

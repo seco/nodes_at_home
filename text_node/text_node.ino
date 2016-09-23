@@ -2,6 +2,13 @@
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
+// #define HOME_WLAN
+#define DEV_WLAN
+// #define XPERIA_WLAN
+// #define IPHONE_WLAN
+
+// ------------------------------------------------------------------------------------------------------------------------------------------
+
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
@@ -11,9 +18,13 @@
 #include <PrintEx.h>
 #include <Ticker.h>
 #include <Time.h>
+#include <TimeLib.h>
 
 #include <JsonStreamingParser.h>
 #include <JsonListener.h>
+#include <ArduinoJson.h>
+
+#include <PubSubClient.h>
 
 #include "MaxMatrix.h"
 #include "Sprites.h"
@@ -28,7 +39,7 @@ using namespace ios;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-#define VERSION PSTR("V0.01 (30.08.2016)")
+#define VERSION "V0.01 (" __DATE__ ", " __TIME__ ")"
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -38,74 +49,78 @@ PrintEx printExSerial = Serial;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-const int DATA_PIN = 14;      // grün DIN pin of MAX7219 module     -> D5
-const int LOAD_PIN = 12;      // gelb CS pin of MAX7219 module      -> D6
-const int CLOCK_PIN = 13;     // schwarz CLK pin of MAX7219 module  -> D7
+const int MATRIX_DATA_PIN = 14;      // grün DIN pin of MAX7219 module     -> D5
+const int MATRIX_LOAD_PIN = 12;      // gelb CS pin of MAX7219 module      -> D6
+const int MATRIX_CLOCK_PIN = 13;     // schwarz CLK pin of MAX7219 module  -> D7
 
-const int MAX_IN_USE = 8;    //change this variable to set how many MAX7219's you'll use
+const int MATRIX_MAX_IN_USE = 8;    //change this variable to set how many MAX7219's you'll use
 
-MaxMatrix m ( DATA_PIN, LOAD_PIN, CLOCK_PIN, MAX_IN_USE ); // define module
+MaxMatrix matrix ( MATRIX_DATA_PIN, MATRIX_LOAD_PIN, MATRIX_CLOCK_PIN, MATRIX_MAX_IN_USE ); // define module
 
 // erste Spalte zum Anzeigen, die ersten 64 Pixelspalten werden leer gelassen 
-int insert_column = 0;
+int matrixInsertColumn = 0;
 
-int text_duration = -1; // in sec, -1 no effect, 0 is forever
+int displayTextDuration = -1; // in sec, -1 no effect, 0 is forever
 long textDisplayBegin;
 
-volatile int display_column = 0;
-volatile int display_row = 0;
+volatile int matrixDisplayColumn = 0;
+volatile int matrixDisplayRow = 0;
 
 // ISR, wird alle 100 ms <gerufen
-#define DEFAULT_DELAY 10
-volatile int shift_delay = DEFAULT_DELAY;
+Ticker ticker;
+#define DEFAULT_TICKER_DELAY 10
+volatile int tickerShiftDelay = DEFAULT_TICKER_DELAY;
 const int TICKER_RESOLUTION = 10; // one tick every 10 ms
-int counter = 0;
+int tickerCounter = 0;
+
+volatile bool isInInterrupt = false;
 
 #define NO_DIRECTION 0
 #define HORIZONTAL_DIRECTION 1
 #define VERTICAL_DIRECTION 2
 
-typedef struct CommandStruct Command;
-
-struct CommandStruct {
+struct Command {
 
     int id;
     int direction;
     int from;
     int to;
     int delay;
-    int next_command_id;
-    Command *next_command;
+    int nextCommandId;
+    Command *nextCommand;
 
     int d;
     boolean running;
 
 };
 
-const int COMMAND_NUM = 20;
-Command commands [COMMAND_NUM];
-volatile Command *cmd;
-int cmd_index = 0;
+const int COMMANDS_SIZE = 20;
+volatile Command commands [COMMANDS_SIZE];
+volatile Command *commandInExecution;
+int commandInExecutionIndex = 0;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-ESP8266WebServer server ( 80 );
+const int HTTP_PORT = 80;
+ESP8266WebServer webServer ( HTTP_PORT );
 
-Ticker ticker;
+WiFiClient wifiClient;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-static byte SNTP_server_IP[]    = { 192, 168, 2, 1 }; // ntpd@mauzi
-//static byte SNTP_server_IP[]    = { 192, 168, 2, 8 }; // ntpd@glutexo
-
-//byte SNTP_server_IP[]    = { 192, 43, 244, 18};   // time.nist.gov
-// byte SNTP_server_IP[]    = { 130,149,17,21};      // ntps1-0.cs.tu-berlin.de xxx
-//byte SNTP_server_IP[]    = { 192,53,103,108};     // ptbtime1.ptb.de
-//byte SNTP_server_IP[]    = { 64, 90, 182, 55 };   // nist1-ny.ustiming.org
-//byte SNTP_server_IP[]    = { 66, 27, 60, 10 };    // ntp2d.mcc.ac.uk
-//byte SNTP_server_IP[]    = { 130, 88, 200, 4 };   // ntp2c.mcc.ac.uk
-//byte SNTP_server_IP[]    = { 31, 193, 9, 10 };    // clock02.mnuk01.burstnet.eu 
-//byte SNTP_server_IP[]    = { 82, 68, 133, 225 };  // ntp0.borg-collective.org.uk
+#if defined HOME_WLAN or defined DEV_WLAN
+static byte SNTP_SERVER_IP[]    = { 192, 168, 2, 1 }; // ntpd@mauzi
+//static byte SNTP_SERVER_IP[]    = { 192, 168, 2, 8 }; // ntpd@glutexo
+#else
+//uint8_t SNTP_SERVER_IP[]    = { 192, 43, 244, 18};   // time.nist.gov
+byte SNTP_SERVER_IP[]    = { 130,149,17,21};      // ntps1-0.cs.tu-berlin.de xxx
+//byte SNTP_SERVER_IP[]    = { 192,53,103,108};     // ptbtime1.ptb.de
+//byte SNTP_SERVER_IP[]    = { 64, 90, 182, 55 };   // nist1-ny.ustiming.org
+//byte SNTP_SERVER_IP[]    = { 66, 27, 60, 10 };    // ntp2d.mcc.ac.uk
+//byte SNTP_SERVER_IP[]    = { 130, 88, 200, 4 };   // ntp2c.mcc.ac.uk
+//byte SNTP_SERVER_IP[]    = { 31, 193, 9, 10 };    // clock02.mnuk01.burstnet.eu 
+//byte SNTP_SERVER_IP[]    = { 82, 68, 133, 225 };  // ntp0.borg-collective.org.uk
+#endif
 
 const unsigned long SEVENTY_YEARS = 2208988800UL; // offset between ntp and unix time
 const unsigned long OFFSET_CEST = 7200L;          // offset in sec for MESZ / CEST
@@ -115,89 +130,145 @@ const unsigned long SYNC_INTERVAL = SECS_PER_HOUR;
 
 WiFiUDP udp;
 
-time_t current_time, last_time;
+time_t currentTime, lastTime;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
 const int LED_PIN = 5;
-boolean led_state;
+boolean ledState;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-const int DAY_TIME_PERIOD = 10;
-int display_counter = 100;
-int display_type = 2;
-const int MAX_DISPLAY_TYPE = 4;
+const int DISPLAY_CATEGORY_PERIOD = 10;
+int displayCategoryPeriodCounter = 100;
+int displayCategory = -1;
+const int MAX_DISPLAY_CATEGORY = 4 + 2;
 
-boolean show_time = false;
+boolean isDisplayCategoryTime = false;
+
+// ------------------------------------------------------------------------------------------------------------------------------------------
+
+const int MQTT_PORT = 1883;
+const char* MQTT_CLIENT_ID = "ESP8266_text_node";
+
+#if defined HOME_WLAN or defined DEV_WLAN
+const IPAddress MQTT_SERVER ( 192, 168, 2, 101 );
+#elif defined XPERIA_WLAN
+const IPAddress MQTT_SERVER ( 192, 168, 43, 78 );
+#elif defined IPHONE_WLAN
+const IPAddress MQTT_SERVER ( 172, 20, 10, 2 );
+#endif
+
+PubSubClient mqttClient ( wifiClient );
+long lastMqttReconnect;
+const long MQTT_RECONNECT_PERIOD = 5000L;
+
+const char* MQTT_TOPIC_DISPLAY_TEXT = "nodes@home/display/text";
+const char* MQTT_TOPIC_HELLO = "nodes@home/hello/matrix";
+const char* MQTT_TOPIC_TEMPERATURE = "nodes@home/sensor/+/+/temperature";
+const char* MQTT_TOPIC_HUMIDITY = "nodes@home/sensor/+/+/humidity";
+
+const int DEFAULT_DISPLAY_TEXT_DURATION = 15;
+
+// ------------------------------------------------------------------------------------------------------------------------------------------
+
+const int NUM_SENSORS = 5;
+char* sensorText [NUM_SENSORS] [200];
+bool isSensorText [NUM_SENSORS];
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
 void setup () {
     
-    delay ( 2000 );
+    delay ( 1000 );
 
-    m.init (); // module initialize
-    m.setIntensity ( 0x0 ); // dot matix intensity 0-15
-    clear_matrix ();
+    // --- init led matrix ----------------------------------------------------
+    matrix.init (); // module initialize
+    matrix.setIntensity ( 0x0 ); // dot matix intensity 0-15
+    clearMatrix ();
 
+    // --- init MY_SERIAL --------------------------------------------------------
     Serial.begin ( 9600 );
     delay ( 2 );
-    MY_SERIAL.println ( "start" ); // first MY_SERIAL print!
+    MY_SERIAL.print ( "\n[SETUP] start version=" ); // first MY_SERIAL print!
+    MY_SERIAL.println ( VERSION );
     
+    // --- init interrupt routine ---------------------------------------------
     // Timer1.initialize ( 50 ); // 50 µs, prescale is set by lib
     // Timer1.attachInterrupt ( doInterrupt );
-    ticker.attach_ms ( TICKER_RESOLUTION, do_interrupt );
+    ticker.attach_ms ( TICKER_RESOLUTION, doInterrupt );
 
-    cmd = NULL; 
+    commandInExecution = NULL; 
 
+    // --- init led pin -------------------------------------------------------
     pinMode ( LED_PIN, OUTPUT );
     digitalWrite ( LED_PIN, HIGH );
 
-    MY_SERIAL.print ( "connecting " );
-    MY_SERIAL.println ( ssid );
+    // --- version text -------------------------------------------------------
+    clearMatrix ();
+    matrix.init ();
+    matrixAppendText ( "version " );
+    matrixAppendText ( VERSION );
+    delay ( 10000 );
+
+    // --- init wifi ----------------------------------------------------------
+    MY_SERIAL.print ( "[SETUP] connecting " );
+    MY_SERIAL.print ( ssid );
     
-    clear_matrix ();
-    m.init ();
-    
+    clearMatrix ();
+    matrix.init ();
+
     WiFi.mode ( WIFI_STA );
     WiFi.begin ( ssid, password );
-    
-    while ( WiFi.status() != WL_CONNECTED ) {
+    while ( WiFi.status () != WL_CONNECTED ) {
         delay ( 500 );
-        matrix_append_text ( "." );
+        matrixAppendText ( "." );
         MY_SERIAL.print ( '.' );
     }
-    matrix_append_text ( "connected" );
-    MY_SERIAL << "connected ";
-    
-    server.on ( "/", handle_root );
-    server.on ( "/debug", handle_debug );
-    server.on ( "/init", handle_init );
-    server.on ( "/clear", handle_clear );
-    server.on ( "/display", handle_display );
-	server.onNotFound ( handle_not_found );
 
-    digitalWrite ( LED_PIN, HIGH );
-    
-    matrix_append_text ( " with ip " );
-    matrix_append_text ( WiFi.localIP ().toString ().c_str () );
-    MY_SERIAL << "with ip ";
+    MY_SERIAL << endl << "[SETUP] connected with ip ";
     MY_SERIAL.println ( WiFi.localIP () );
+
+    clearMatrix ();
+    matrix.init ();
+    matrixAppendText ( "connected with ip " );
+    matrixAppendText ( WiFi.localIP ().toString ().c_str () );
     
+    // --- init web server ----------------------------------------------------
+    webServer.on ( "/", handleRoot );
+    webServer.on ( "/debug", handleDebug );
+    webServer.on ( "/init", handleInit );
+    webServer.on ( "/clear", handleClear );
+    webServer.on ( "/display", handleDisplay );
+	webServer.onNotFound ( handleNotFound );
+    webServer.begin(); // start web server
+    
+    // --- init ntp -----------------------------------------------------------
+    MY_SERIAL.print ( "[SETUP] ntp server=" );
+    for ( int i = 0; i < 4; i++ ) {
+        MY_SERIAL.print ( SNTP_SERVER_IP [i] );
+        if ( i < 3 ) MY_SERIAL.print ( "." );
+        else MY_SERIAL.println ();
+    }
     udp.begin ( 8888 ); // for connect to time server
     setSyncInterval ( SYNC_INTERVAL );
     setSyncProvider ( getNtpTime );
-    MY_SERIAL.print ( " now: " );
+    MY_SERIAL.print ( "[SETUP] now: " );
     digitalClockDisplay ( now () );
     
-    server.begin(); // start web server
+    // --- init mqtt -----------------------------------------------------------
+    MY_SERIAL << "[SETUP] mqtt: server=" << MQTT_SERVER << " port=" << MQTT_PORT << " version=" << MQTT_VERSION << endl;
+    mqttClient.setServer ( MQTT_SERVER, MQTT_PORT );
+    mqttClient.setCallback ( mqttCallback );
+    // mqttClient.setClient ( wifiClient );
+
+    // --- display message -----------------------------------------------------
     
     delay ( 10000 );
-    clear_matrix ();
+    clearMatrix ();
   
     digitalWrite ( LED_PIN, HIGH );
-
+    
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
@@ -235,8 +306,119 @@ void setup () {
 // }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
+
+void mqttCallback ( char* topic, byte* payload, unsigned int payloadLength ) {
     
-void handle_root() {
+    MY_SERIAL.print ( "[MQTT] mqttCallback isInInterrupt=" );
+    if ( isInInterrupt ) MY_SERIAL.println ( "true" );
+    else MY_SERIAL.println ( "false" );
+    MY_SERIAL.print ( "[MQTT] payloadLength=" );
+    MY_SERIAL.println ( payloadLength );
+    
+    while ( isInInterrupt ) delay ( 1 ); // wait
+    
+    MY_SERIAL.print ( "[MQTT] Message arrived [" );
+    MY_SERIAL.print ( topic );
+    MY_SERIAL.print ( "] " );
+    for ( int i = 0; i < payloadLength; i++ ) MY_SERIAL.print ( (char) payload [i] );
+    MY_SERIAL.println();
+
+    char buf [200] = { 0 };
+    int len = payloadLength < sizeof ( buf ) ? payloadLength : sizeof ( buf ) - 1;
+    strncpy ( buf, (const char*) payload, len );
+    buf [len] = '\0';
+        
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& root = jsonBuffer.parseObject ( buf );
+
+    if ( strcmp ( topic, MQTT_TOPIC_DISPLAY_TEXT ) == 0 ) {
+
+        MY_SERIAL << "[MQTT] display text topic" << endl;
+        
+        if  ( root.success () ) {
+            clearMatrix ();
+            matrix.init ();
+            const int duration = root ["duration"];
+            const char* text = root ["text"];
+            displayTextDuration = duration > 0 ? duration : DEFAULT_DISPLAY_TEXT_DURATION;
+            matrixAppendText ( text );
+        }
+        else {
+            MY_SERIAL.printf ( "parsing failed payload=%s\n", payload );
+        }
+        
+    }
+    else {
+        char* token = strtok ( topic, "/" );
+        int i = 0;
+        char sensorName [20];
+        char sensorLocation [20];
+        char sensorType [20];
+        while ( token ) {
+            MY_SERIAL.printf ( "[MQTT] token=%s\n", token );
+            if ( i == 2 ) {
+                strncpy ( sensorName, token, 20 );
+            }
+            else if ( i == 3 ) {
+                strncpy ( sensorLocation, token, 20 );
+            }
+            else if ( i == 4 ) {
+                strncpy ( sensorType, token, 20 );
+            }
+            token = strtok ( NULL, "/" );
+            i++;
+        }
+        char unit [20];
+        int index;
+        if ( strcmp ( sensorType, "temperature" ) == 0 ) {
+            strcpy ( unit, "°C" );
+            index = 0;
+        }
+        else if ( strcmp ( sensorType, "humidity" ) == 0 ) {
+            strcpy ( unit, "%" );
+            index = 1;
+        }
+        isSensorText [index] = true;
+        int value = root ["value"];
+        snprintf ( (char*) (sensorText + index), 200, "sensor %s@%s: %d%s", sensorName, sensorLocation, value, unit );
+    }
+
+}
+
+void mqttReconnect () {
+    
+    // Loop until we're reconnected
+    if ( !mqttClient.connected () && (lastMqttReconnect + MQTT_RECONNECT_PERIOD) < millis () ) {
+      
+        MY_SERIAL.print ( "[MQTT] Attempting MQTT connection ... " );
+
+        lastMqttReconnect = millis ();
+
+        // Attempt to connect
+        if ( mqttClient.connect ( MQTT_CLIENT_ID ) ) {
+        
+            MY_SERIAL.println ( "connected" );
+            // Once connected, publish an announcement...
+            mqttClient.publish ( MQTT_TOPIC_HELLO, "hello from text_node" );
+            // ... and resubscribe
+            mqttClient.subscribe ( MQTT_TOPIC_DISPLAY_TEXT );
+            mqttClient.subscribe ( MQTT_TOPIC_TEMPERATURE );
+            mqttClient.subscribe ( MQTT_TOPIC_HUMIDITY );
+      
+        } 
+        else {
+        
+            MY_SERIAL.print ( "failed, rc=" );
+            MY_SERIAL.print ( mqttClient.state () );
+            MY_SERIAL.println ( " try again in 5 seconds" );
+
+        }
+    }
+}
+    
+// ------------------------------------------------------------------------------------------------------------------------------------------
+    
+void handleRoot() {
 
     const char html_template [] = \
 "<html>\
@@ -268,162 +450,162 @@ void handle_root() {
     
 	snprintf ( buf, buf_len, html_template, 
                hr, min % 60, sec % 60, 
-               day ( current_time ), month ( current_time ), year ( current_time ),
-               hour ( current_time ), minute ( current_time ), second ( current_time ),
+               day ( currentTime ), month ( currentTime ), year ( currentTime ),
+               hour ( currentTime ), minute ( currentTime ), second ( currentTime ),
                WiFi.localIP ().toString ().c_str (), WiFi.channel () 
     );
-	server.send ( HTTP_CODE_OK, "text/html", buf );
+	webServer.send ( HTTP_CODE_OK, "text/html", buf );
 
 }
 
-void handle_not_found () {
+void handleNotFound () {
 
 	String message = "File Not Found\n\n";
 	message += "URI: ";
-	message += server.uri ();
+	message += webServer.uri ();
 	message += "\nMethod: ";
-	message += ( server.method() == HTTP_GET ) ? "GET" : "POST";
+	message += ( webServer.method() == HTTP_GET ) ? "GET" : "POST";
 	message += "\nArguments: ";
-	message += server.args ();
+	message += webServer.args ();
 	message += "\n";
 
-	for ( uint8_t i = 0; i < server.args (); i++ ) {
-		message += " " + server.argName ( i ) + ": " + server.arg ( i ) + "\n";
+	for ( uint8_t i = 0; i < webServer.args (); i++ ) {
+		message += " " + webServer.argName ( i ) + ": " + webServer.arg ( i ) + "\n";
 	}
 
-	server.send ( HTTP_CODE_NOT_FOUND, "text/plain", message );
+	webServer.send ( HTTP_CODE_NOT_FOUND, "text/plain", message );
 
 }
 
-void handle_debug () {
+void handleDebug () {
 
     const int buf_len = 400;
 	char buf [buf_len];
     const char* buf_template = \
 "debug info\n\
-    insert_column=%d\n\
-    display_column=%d\n\
-    display_row=%d\n\
-    shift_delay=%d\n\
-    text_duration=%d\n\
+    matrixInsertColumn=%d\n\
+    matrixDisplayColumn=%d\n\
+    matrixDisplayRow=%d\n\
+    tickerShiftDelay=%d\n\
+    displayTextDuration=%d\n\
 ";
 
-	snprintf ( buf, buf_len, buf_template, insert_column, display_column, display_row, shift_delay, text_duration );
+	snprintf ( buf, buf_len, buf_template, matrixInsertColumn, matrixDisplayColumn, matrixDisplayRow, tickerShiftDelay, displayTextDuration );
     
     String tag = "xy";
-    if ( server.args () > 0 ) {
-        if ( server.hasArg ( "tag" ) ) {
-            tag = server.arg ( "tag" );
+    if ( webServer.args () > 0 ) {
+        if ( webServer.hasArg ( "tag" ) ) {
+            tag = webServer.arg ( "tag" );
         }
     }
     MY_SERIAL.printf ( "[DEBUG] tag=%s\n", tag.c_str () );
     
-    server.send ( HTTP_CODE_OK, "text/plain", buf );
+    webServer.send ( HTTP_CODE_OK, "text/plain", buf );
 
 }
 
-void handle_init () {
+void handleInit () {
     
-    m.init ();
-    clear_matrix ();
-    server.send ( HTTP_CODE_OK, "text/plain", "matrix initialized" );
-    
-}
-
-void handle_clear () {
-    
-    clear_matrix ();
-    server.send ( HTTP_CODE_OK, "text/plain", "text cleared" );
+    matrix.init ();
+    clearMatrix ();
+    webServer.send ( HTTP_CODE_OK, "text/plain", "matrix initialized" );
     
 }
 
-void handle_display () {
+void handleClear () {
     
-    if ( server.args () > 0 ) {
-        if ( server.hasArg ( "text" ) ) {
-            String text = server.arg ( "text" );
+    clearMatrix ();
+    webServer.send ( HTTP_CODE_OK, "text/plain", "text cleared" );
+    
+}
+
+void handleDisplay () {
+    
+    if ( webServer.args () > 0 ) {
+        if ( webServer.hasArg ( "text" ) ) {
+            String text = webServer.arg ( "text" );
             MY_SERIAL << "received text=" << text << endl;
-            clear_matrix ();
-            matrix_append_text ( text.c_str () );
-            text_duration = -1;
+            clearMatrix ();
+            matrixAppendText ( text.c_str () );
+            displayTextDuration = -1;
         }
-        if ( server.hasArg ( "duration" ) ) {
-            String duration_str = server.arg ( "duration" );
+        if ( webServer.hasArg ( "duration" ) ) {
+            String duration_str = webServer.arg ( "duration" );
             if ( duration_str == "forever" ) {
-                text_duration = 0;
+                displayTextDuration = 0;
             }
             else {
-                text_duration = atoi ( duration_str.c_str () );
+                displayTextDuration = atoi ( duration_str.c_str () );
             }
                 
         }
-        if ( server.hasArg ( "ticks" ) ) {
-            String ticks_str = server.arg ( "ticks" );
+        if ( webServer.hasArg ( "ticks" ) ) {
+            String ticks_str = webServer.arg ( "ticks" );
             int ticks = atoi ( ticks_str.c_str () );
             MY_SERIAL << "received ticks=" << ticks_str << endl;
-            shift_delay = ticks;
+            tickerShiftDelay = ticks;
         }
-        if ( server.hasArg ( "brightness" ) ) {
-            String brightness_str = server.arg ( "brightness" );
+        if ( webServer.hasArg ( "brightness" ) ) {
+            String brightness_str = webServer.arg ( "brightness" );
             int intensity = atoi ( brightness_str.c_str () );
             MY_SERIAL << "received intensity=" << brightness_str << endl;
-            m.setIntensity ( intensity );
+            matrix.setIntensity ( intensity );
         }
 
-        server.send ( HTTP_CODE_OK, "text/plain", "display handled" );
+        webServer.send ( HTTP_CODE_OK, "text/plain", "display handled" );
 
     }
     else {
-        server.send ( HTTP_CODE_BAD_REQUEST, "text/plain", "no text argument" );
+        webServer.send ( HTTP_CODE_BAD_REQUEST, "text/plain", "no text argument" );
     }
     
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-void clear_matrix () {
+void clearMatrix () {
 
-    m.clear ();
-    // insert_column = NUM_DISPLAY_COLS;
-    insert_column = 0;
-    display_column = 0;
-    display_row = 0;
+    matrix.clear ();
+    // matrixInsertColumn = NUM_DISPLAY_COLS;
+    matrixInsertColumn = 0;
+    matrixDisplayColumn = 0;
+    matrixDisplayRow = 0;
 
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-void clear_command ( int i ) {
+void clearCommand ( int i ) {
 
     commands [i].id = -1;
     commands [i].direction = NO_DIRECTION;
     commands [i].from = -1;
     commands [i].to = -1;
     commands [i].delay = -1;
-    commands [i].next_command_id = -1;
-    commands [i].next_command = NULL;
+    commands [i].nextCommandId = -1;
+    commands [i].nextCommand = NULL;
     commands [i].d = 0;
     commands [i].running = false;
 
 }
 
-void clear_all_commands () {
+void clearAllCommands () {
 
-    cmd_index = 0;
+    commandInExecutionIndex = 0;
     
-    for ( int i = 0; i < COMMAND_NUM; i++ ) {
-        clear_command ( i );
+    for ( int i = 0; i < COMMANDS_SIZE; i++ ) {
+        clearCommand ( i );
     }
     
 }
 
-struct CommandStruct *find_command ( int id ) {
+struct Command* findCommand ( int id ) {
 
     Command *result = NULL;
 
-    for ( int i = 0; i < COMMAND_NUM; i++ ) {
+    for ( int i = 0; i < COMMANDS_SIZE; i++ ) {
         if ( commands [i].id == id ) {
-            result = &commands [i];
+            result = (Command*) &commands [i];
         }
     }
 
@@ -433,25 +615,29 @@ struct CommandStruct *find_command ( int id ) {
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-void do_interrupt () {
+void doInterrupt () {
+    
+    isInInterrupt = true;
 
     volatile int* val;
     
-    counter++;
-    if ( counter > shift_delay ) {
+    tickerCounter++;
+    if ( tickerCounter > tickerShiftDelay ) {
 
-        counter = 0;
+        tickerCounter = 0;
         
-        m.shiftOutMatrix ( display_column, display_row );
+        matrix.shiftOutMatrix ( matrixDisplayColumn, matrixDisplayRow );
+        
+        volatile Command* cmd = commandInExecution;
 
-        if ( cmd != NULL ) {
+        if ( cmd ) {
 
-            if ( cmd->direction == HORIZONTAL_DIRECTION ) val = &display_column;
-            else if ( cmd->direction == VERTICAL_DIRECTION ) val = &display_row;
+            if ( cmd->direction == HORIZONTAL_DIRECTION ) val = &matrixDisplayColumn;
+            else if ( cmd->direction == VERTICAL_DIRECTION ) val = &matrixDisplayRow;
 
             if ( cmd->running ) {
                 if ( *val == cmd->to ) {
-                    set_next_command ();
+                    setNextCommand ();
                 }
                 else {
                     *val += cmd->d;
@@ -465,55 +651,63 @@ void do_interrupt () {
         }
         
     }
+    
+    isInInterrupt = false;
 
 }
 
-void init_command ( int id, int direction, int from, int to, int next_id ) {
+void initCommand ( int id, int direction, int from, int to, int next_id ) {
 
-        commands [cmd_index].id = id;
-        commands [cmd_index].direction = direction;
-        commands [cmd_index].from = from;
-        commands [cmd_index].to = to;
-        commands [cmd_index].delay = DEFAULT_DELAY;
-        if ( commands [cmd_index].from < commands [cmd_index].to ) {
-            commands [cmd_index].d = 1;
+        commands [commandInExecutionIndex].id = id;
+        commands [commandInExecutionIndex].direction = direction;
+        commands [commandInExecutionIndex].from = from;
+        commands [commandInExecutionIndex].to = to;
+        commands [commandInExecutionIndex].delay = DEFAULT_TICKER_DELAY;
+        if ( commands [commandInExecutionIndex].from < commands [commandInExecutionIndex].to ) {
+            commands [commandInExecutionIndex].d = 1;
         }
         else {
-            commands [cmd_index].d = -1;
+            commands [commandInExecutionIndex].d = -1;
         }
-        commands [cmd_index].next_command_id = next_id;
+        commands [commandInExecutionIndex].nextCommandId = next_id;
         
-        cmd_index++;
+        commandInExecutionIndex++;
 
 }
 
-void start_command ( int id ) {
+void startCommand ( int id ) {
     
-    Command *command = find_command ( id );
+    Command *command = findCommand ( id );
     command->running = false;
-    cmd = command;
+    commandInExecution = command;
 
 }
 
-void set_next_command () {
+void setNextCommand () {
 
-    cmd->running = false;
+    commandInExecution->running = false;
     
-    if ( cmd->next_command_id > -1 ) {
-        if ( cmd->next_command == NULL ) {
-            cmd->next_command = find_command ( cmd->next_command_id );
+    if ( commandInExecution->nextCommandId > -1 ) {
+        if ( commandInExecution->nextCommand == NULL ) {
+            commandInExecution->nextCommand = findCommand ( commandInExecution->nextCommandId );
         }
-        cmd = cmd->next_command;
-        if ( cmd != NULL ) cmd->running = false; // damit sich from initialisiert
+        commandInExecution = commandInExecution->nextCommand;
+        if ( commandInExecution ) commandInExecution->running = false; // damit sich from initialisiert
     }
 
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-void matrix_append_text ( const String str ) {
+void matrixAppendText ( const String str ) {
     
-    matrix_append_text ( str.c_str () );
+    matrixAppendText ( str.c_str (), str.length () );
+    
+}
+
+void matrixAppendText ( const char* text ) {
+    
+    matrixAppendText ( text, strlen ( text ) );
     
 }
 
@@ -531,35 +725,46 @@ void matrix_append_text ( const String str ) {
     
 */
 
-void matrix_append_text ( const char* text ) {
+void matrixAppendText ( const char* text, const int length ) {
     
-    cmd = NULL;
+    commandInExecution = NULL;
     
-    while ( *text ) {
+    for ( int i = 0; i < length; i++ ) {
 
-        if ( *text == 0xC3 ) { // special handling for german umlaute
+        if ( text [i] == 0xC3 ) { // special handling for german umlaute
         
-            switch ( *++text ) {
+            switch ( text [++i] ) {
                 case 0x84: // Ä     sprite index 95
-                    insert_column += m.printChar ( 32 + 95, insert_column );
+                    matrixInsertColumn += matrix.printChar ( 32 + 95, matrixInsertColumn );
                     break;
                 case 0x96: // Ö     sprite index 96
-                    insert_column += m.printChar ( 32 + 96, insert_column );
+                    matrixInsertColumn += matrix.printChar ( 32 + 96, matrixInsertColumn );
                     break;
                 case 0x9C: // Ü     sprite index 97
-                    insert_column += m.printChar ( 32 + 97, insert_column );
+                    matrixInsertColumn += matrix.printChar ( 32 + 97, matrixInsertColumn );
                     break;
                 case 0xA4: // ä     sprite index 98
-                    insert_column += m.printChar ( 32 + 98, insert_column );
+                    matrixInsertColumn += matrix.printChar ( 32 + 98, matrixInsertColumn );
                     break;
                 case 0xB6: // ö     sprite index 99
-                    insert_column += m.printChar ( 32 + 99, insert_column );
+                    matrixInsertColumn += matrix.printChar ( 32 + 99, matrixInsertColumn );
                     break;
                 case 0xBC: // ü     sprite index 100
-                    insert_column += m.printChar ( 32 + 100, insert_column );
+                    matrixInsertColumn += matrix.printChar ( 32 + 100, matrixInsertColumn );
                     break;
                 case 0x9F: // ü     sprite index 101
-                    insert_column += m.printChar ( 32 + 101, insert_column );
+                    matrixInsertColumn += matrix.printChar ( 32 + 101, matrixInsertColumn );
+                    break;
+                default:
+                    break;
+            }
+            
+        }
+        else if ( text [i] == 0xC2 ) { // special handling for german umlaute
+        
+            switch ( text [++i] ) {
+                case 0xB0: // °     sprite index 102
+                    matrixInsertColumn += matrix.printChar ( 32 + 102, matrixInsertColumn );
                     break;
                 default:
                     break;
@@ -568,50 +773,48 @@ void matrix_append_text ( const char* text ) {
         }
         else {
             
-            insert_column += m.printChar ( *text, insert_column );
+            matrixInsertColumn += matrix.printChar ( text [i], matrixInsertColumn );
             
         }
 
-        text++;
-
     }
     
-    if ( insert_column > NUM_DISPLAY_COLS ) {
+    if ( matrixInsertColumn > NUM_DISPLAY_COLS ) {
         
-        clear_all_commands ();
+        clearAllCommands ();
         
         int col1 = 0;
-        int col2 = insert_column - NUM_DISPLAY_COLS;
-        init_command ( 1, HORIZONTAL_DIRECTION, col1, col2, 2 );
-        init_command ( 2, HORIZONTAL_DIRECTION, col2, col2, 3 );
-        init_command ( 3, HORIZONTAL_DIRECTION, col2, col1, 4 );
-        init_command ( 4, HORIZONTAL_DIRECTION, col1, col1, 1 );
+        int col2 = matrixInsertColumn - NUM_DISPLAY_COLS;
+        initCommand ( 1, HORIZONTAL_DIRECTION, col1, col2, 2 );
+        initCommand ( 2, HORIZONTAL_DIRECTION, col2, col2, 3 );
+        initCommand ( 3, HORIZONTAL_DIRECTION, col2, col1, 4 );
+        initCommand ( 4, HORIZONTAL_DIRECTION, col1, col1, 1 );
         
-        start_command ( 1 );
+        startCommand ( 4 );
 
     }
-    
+
     textDisplayBegin = millis ();
 
 }
 
-void show_time_date_char ( char c ) {
+void matrixDisplayTimeDateChar ( char c ) {
 
-    if ( c == '1' ) insert_column += m.printEmptyCol ( insert_column );
+    if ( c == '1' ) matrixInsertColumn += matrix.printEmptyCol ( matrixInsertColumn );
     if ( c == ' ' ) {
-        insert_column += m.printEmptyCol ( insert_column );
-        insert_column += m.printEmptyCol ( insert_column );
-        insert_column += m.printEmptyCol ( insert_column );
+        matrixInsertColumn += matrix.printEmptyCol ( matrixInsertColumn );
+        matrixInsertColumn += matrix.printEmptyCol ( matrixInsertColumn );
+        matrixInsertColumn += matrix.printEmptyCol ( matrixInsertColumn );
     }
     else {
-        insert_column += m.printChar ( c, insert_column );
+        matrixInsertColumn += matrix.printChar ( c, matrixInsertColumn );
     }
 
 }
 
-void matrix_show_time ( time_t time ) {
+void matrixDisplayTime ( time_t time ) {
     
-    cmd = NULL;
+    commandInExecution = NULL;
 
     int len = 30;
     char buf [len];
@@ -619,18 +822,19 @@ void matrix_show_time ( time_t time ) {
     sprintf ( buf, "%02d%c%02d", hour ( time ), second ( time ) % 2 == 0 ? ':' : ' ', minute ( time ) );
     // MY_SERIAL.println ( buf );
 
-    insert_column = 21;
+    matrixInsertColumn = 21;
+    matrixDisplayColumn = 0;
     
     for ( int i = 0; i < len; i++ ) {
         if ( buf [i] == 0x00 ) break;
-        show_time_date_char ( buf [i] );
+        matrixDisplayTimeDateChar ( buf [i] );
     }
     
 }
 
-void matrix_show_date ( time_t time ) {
+void matrixDisplayDate ( time_t time ) {
     
-    cmd = NULL;
+    commandInExecution = NULL;
 
     int len = 30;
     char buf [len];
@@ -638,11 +842,11 @@ void matrix_show_date ( time_t time ) {
     sprintf ( buf, "%02d.%02d.%04d", day ( time ), month ( time ), year ( time ) );
     // MY_SERIAL.println ( buf );
 
-    insert_column = 9;
+    matrixInsertColumn = 9;
     
     for ( int i = 0; i < len; i++ ) {
         if ( buf [i] == 0x00 ) break;
-        show_time_date_char ( buf [i] );
+        matrixDisplayTimeDateChar ( buf [i] );
     }
     
 }
@@ -700,7 +904,7 @@ boolean isCEST ( unsigned long t ) {
 
 time_t getNtpTime () {
   
-  sendNTPpacket ( SNTP_server_IP );
+  sendNTPpacket ( SNTP_SERVER_IP );
 
   delay ( 1000 );
   
@@ -835,8 +1039,8 @@ void requestJsonDataFromUrl ( const char* url, JsonListener* jsonListener ) {
                 // read up to 128 byte
                 int readBytesLen = stream->readBytes ( buf, ( ( size > sizeof ( buf ) ) ? sizeof ( buf ) : size ) );
 
-                // write it to Serial
-                // Serial.write ( buf, readBytesLen );
+                // write it to MY_SERIAL
+                // MY_SERIAL.write ( buf, readBytesLen );
                 for ( int i = 0; i < readBytesLen; i++ ) {
                     jsonParser.parse ( buf [i] );
                 }
@@ -980,7 +1184,7 @@ char* getCurrentWeatherText () {
         
         requestJsonDataFromUrl ( url, &currentWeatherJsonListener );
         
-        snprintf ( currentWeatherTextCache, sizeof ( currentWeatherTextCache ), "%sC %s%% %shPa", temperature, humidity, pressure );
+        snprintf ( currentWeatherTextCache, sizeof ( currentWeatherTextCache ), "%s°C %s%% %shPa", temperature, humidity, pressure );
         MY_SERIAL.printf ( "[WEATHER] temperature=%s humidity=%s pressure=%s\n", temperature, humidity, pressure );
 
         lastCurrentWeatherHttpRequest = millis ();
@@ -1114,7 +1318,7 @@ char* getForecastWeatherText () {
         dtostrf ( maxTemp, 4, 1, maxTempStr );
 
         MY_SERIAL.printf ( "[WEATHER] min=%sC max=%sC\n", minTempStr, maxTempStr );
-        sprintf ( forecastWeatherTextCache, "min %sC max %sC", minTempStr, maxTempStr );
+        sprintf ( forecastWeatherTextCache, "min %s°C max %s°C", minTempStr, maxTempStr );
             
 
         lastForecastWeatherHttpRequest = millis ();
@@ -1127,53 +1331,98 @@ char* getForecastWeatherText () {
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
+char* getSensorText ( int sensor ) {
+    
+    char* result = (char*) "no sensor text";
+    
+    if ( sensor >= 0 && sensor < NUM_SENSORS ) {
+        if ( isSensorText [sensor] ) result = (char*) sensorText [sensor];
+    }
+    
+    return result;
+    
+}
+
+// ------------------------------------------------------------------------------------------------------------------------------------------
+
+bool dontWait = false;
+
 void loop() {
     
-    server.handleClient();
+    webServer.handleClient();
+    
+    mqttReconnect ();
+    mqttClient.loop ();
 
-    current_time = now ();
+    currentTime = now ();
     // tick every second
-    if ( second ( current_time ) != second ( last_time ) ) {
+    if ( dontWait || second ( currentTime ) != second ( lastTime ) ) {
         
-        led_state = !led_state;
-        digitalWrite ( LED_PIN, led_state );
+        dontWait = false;
         
-        if ( text_duration < 0 || text_duration > 0 && textDisplayBegin + text_duration * 1000L < millis () ) {
+        ledState = !ledState;
+        digitalWrite ( LED_PIN, ledState );
+        
+        displayCategoryPeriodCounter++;
+        
+        if ( displayTextDuration < 0 || displayTextDuration > 0 && textDisplayBegin + displayTextDuration * 1000L < millis () ) {
             
-            if ( show_time ) matrix_show_time ( current_time ); // toggle the colon
+            if ( displayTextDuration > 0 ) {
+                displayTextDuration = -1;
+                clearMatrix ();
+            }
+            
+            if ( isDisplayCategoryTime ) matrixDisplayTime ( currentTime ); // toggle the colon
         
-            if ( ++display_counter >= DAY_TIME_PERIOD ) {
-                display_counter = 0;
-                display_type++;
-                if ( display_type > MAX_DISPLAY_TYPE ) display_type = 0;
-                clear_matrix ();
-                m.init ();
-                show_time = false;
-                switch ( display_type ) {
+            if ( displayCategoryPeriodCounter >= DISPLAY_CATEGORY_PERIOD ) {
+                
+                displayCategoryPeriodCounter = 0;
+                displayCategory++;
+                if ( displayCategory > MAX_DISPLAY_CATEGORY ) displayCategory = 0;
+                clearMatrix ();
+                matrix.init ();
+                isDisplayCategoryTime = false;
+                int sensor = displayCategory - 5;
+
+                switch ( displayCategory ) {
                     case 0: // time
-                        matrix_show_time ( current_time );
-                        show_time = true;
+                        matrixDisplayTime ( currentTime );
+                        isDisplayCategoryTime = true;
                         break;
                     case 1: // date
-                        matrix_show_date ( current_time );
+                        matrixDisplayDate ( currentTime );
                         break;
                     case 2: // day of week
-                        // matrix_show_day_of_week ( current_time );
-                        insert_column = 13;
-                        matrix_append_text ( dayStr ( weekday ( current_time ) ) );
+                        // matrix_show_day_of_week ( currentTime );
+                        matrixInsertColumn = 13;
+                        matrixAppendText ( dayStr ( weekday ( currentTime ) ) );
                         break;
                     case 3: // weather
-                        insert_column = 0;
-                        matrix_append_text ( getForecastWeatherText () );
-                        text_duration = -1;
+                        matrixInsertColumn = 0;
+                        matrixAppendText ( getForecastWeatherText () );
+                        displayTextDuration = -1;
                         break;
                     case 4: // forecast
-                        insert_column = 0;
-                        matrix_append_text ( getCurrentWeatherText () );
-                        text_duration = -1;
+                        matrixInsertColumn = 0;
+                        matrixAppendText ( getCurrentWeatherText () );
+                        displayTextDuration = -1;
+                        break;
+                    case 5: // sensor 0
+                    case 6: // sensor 1
+                        matrixInsertColumn = 0;
+                        displayTextDuration = -1;
+                        if ( isSensorText [sensor] ) {
+                            matrixAppendText ( getSensorText ( sensor ) );
+                        }
+                        else {
+                            // displayCategory++;
+                            displayCategoryPeriodCounter = DISPLAY_CATEGORY_PERIOD;
+                            dontWait = true;
+                            MY_SERIAL.println ( "DONT WAIT" );
+                        }
                         break;
                     default:
-                        display_counter = 0;
+                        displayCategoryPeriodCounter = 0;
                         break;
                 }
 
@@ -1181,7 +1430,7 @@ void loop() {
             
         }
         
-        last_time = current_time;
+        lastTime = currentTime;
         
     }
       

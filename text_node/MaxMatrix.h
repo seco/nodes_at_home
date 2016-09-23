@@ -35,8 +35,6 @@ class MaxMatrix
     byte clock;
     byte num;
     
-    int maxCol;
-	
   public:
 
     byte pixelBuffer [NUM_BUF_COLS];
