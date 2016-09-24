@@ -1,0 +1,80 @@
+###
+### junand 23.09.2016
+###
+
+homeassistant:
+  # Name of the location where Home Assistant is running
+  name: Home-Assistant
+  # Location required to calculate the time the sun rises and sets
+  latitude: 52.4992
+  longitude: 13.4307
+  # Impacts weather/sunrise data
+  elevation: 36
+  # metric for Metric, imperial for Imperial
+  unit_system: metric
+  # Pick yours from here: http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  time_zone: Europe/Berlin
+
+# mqtt broker
+mqtt:
+  broker: 192.168.2.117
+  port: 1883
+  client_id: home-assistant
+  keepalive: 120
+  protocol: 3.1.1
+
+# Show links to resources in log and frontend
+###introduction:
+
+# Enables the frontend
+frontend:
+
+http:
+  # Uncomment this to add a password (recommended!)
+  # api_password: PASSWORD
+
+# Checks for available updates
+updater:
+
+# Discover some devices automatically
+###discovery:
+
+# Allows you to issue voice commands from the frontend in enabled browsers
+conversation:
+
+# Enables support for tracking state changes over time.
+history:
+
+# View all events in a logbook
+logbook:
+
+# Track the sun
+sun:
+
+# Weather Prediction
+sensor:
+
+  ###- platform: yr
+
+  - platform: openweathermap
+    api_key: 29ab3e72b07b4dd4c3aca6db6ff3290d
+    forecast: 1
+    monitored_conditions:
+    - weather
+    - temperature
+    - humidity
+    - pressure
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/table/temperature
+    name: "DHT11@table"
+    qos: 0
+    unit_of_measurement: "°C"
+    value_template: '{{ value_json.value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/test
+    name: "Test"
+    qos: 0
+    value_template: '{{ value }}'
+
