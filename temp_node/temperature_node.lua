@@ -7,16 +7,20 @@
 -------------------------------------------------------------------------------
 --  Settings
 
+--- run mode ---
 RUN_MODE_PROD = 1;
 RUN_MODE_DEV_HOME = -1;
 RUN_MODE_DEV_XPERIA = -2;
 RUN_MODE_DEV_IPHONE = -3;
+RUN_MODE_DEV_3G = -4;
 
-runMode = RUN_MODE_DEV_HOME;
+-- runMode = RUN_MODE_DEV_HOME;
+runMode = RUN_MODE_DEV_3G;
+-- runMode = RUN_MODE_PROD;
 
 --- MQTT ---
 if ( runMode == RUN_MODE_PROD ) then
-    MQTT_BROKER_IP = ""; 
+    MQTT_BROKER_IP = "192.168.2.117"; 
 elseif ( runMode == RUN_MODE_DEV_HOME ) then
     -- 192.168.10.100
     MQTT_BROKER_IP = "192.168.2.101";
@@ -26,11 +30,15 @@ elseif ( runMode == RUN_MODE_DEV_XPERIA ) then
 elseif ( runMode == RUN_MODE_DEV_IPHONE ) then
     -- 172.20.10.8
     MQTT_BROKER_IP = "172.20.10.2";
+elseif ( runMode == RUN_MODE_DEV_3G ) then
+    -- 192.168.0.101
+    MQTT_BROKER_IP = "192.168.0.100"
 end
 
 MQTT_BROKER_PORT = 1883;
 MQTT_USERNAME = "";
 MQTT_PASSWORD = "";
+MQTT_KEEP_ALIVE_TIME = 120; -- sec
 
 MQTT_SENSOR="DHT11"
 MQTT_LOCATION="table"
@@ -49,8 +57,22 @@ WIFI_SIGNAL_MODE = wifi.PHYMODE_N;
 -- better for battery life. Blank "" will use DHCP.
 -- My own tests show around 1-2 seconds with static ip
 -- and 4+ seconds for DHCP
--- CLIENT_IP, CLIENT_NETMASK, CLIENT_GATEWAY = "192.168.2.20", "255.255.255.0", "192.168.2.1";
-CLIENT_IP, CLIENT_NETMASK, CLIENT_GATEWAY = "192.168.10.20", "255.255.255.0", "192.168.10.254";
+if ( runMode == RUN_MODE_PROD ) then
+    -- 192.168.2.nnn
+    CLIENT_IP, CLIENT_NETMASK, CLIENT_GATEWAY = "192.168.2.20", "255.255.255.0", "192.168.2.1";
+elseif ( runMode == RUN_MODE_DEV_HOME ) then
+    -- 192.168.10.100
+    CLIENT_IP, CLIENT_NETMASK, CLIENT_GATEWAY = "192.168.10.20", "255.255.255.0", "192.168.10.254";
+elseif ( runMode == RUN_MODE_DEV_XPERIA ) then
+    --192.168.43.82
+    CLIENT_IP, CLIENT_NETMASK, CLIENT_GATEWAY = "", "", "";
+elseif ( runMode == RUN_MODE_DEV_IPHONE ) then
+    -- 172.20.10.8
+    CLIENT_IP, CLIENT_NETMASK, CLIENT_GATEWAY = "", "", "";
+elseif ( runMode == RUN_MODE_DEV_3G ) then
+    -- 192.168.0.101
+    CLIENT_IP, CLIENT_NETMASK, CLIENT_GATEWAY = "", "", "";
+end
 
 --- INTERVAL ---
 -- In milliseconds. Remember that the sensor reading, 
@@ -63,12 +85,6 @@ DHT_PIN = 7; -- GPIO13
 
 -------------------------------------------------------------------------------
 -- main
-
-temperature = 0;
-humidity = 0;
-
--- Setup MQTT client and events
-mqttClient = mqtt.Client ( client_id, 120, MQTT_USERNAME, MQTT_PASSWORD ); -- 120 sec -> keep alive time
 
 -- Connect to the wifi network
 dofile ( "credential.lua" );
@@ -85,14 +101,12 @@ end
 -- DHT11 sensor logic
 function getSensorData ()
 
-    dht = require ( "dht" );
+    local dht = require ( "dht" );
     
-    status, temp, humi, temp_decimial, humi_decimial = dht.read ( DHT_PIN );
+    local status, temperature, humidity, temp_decimial, humi_decimial = dht.read ( DHT_PIN );
     
     if( status == dht.OK ) then
 
-        temperature = temp;
-        humidity = humi;
         print ( "[DHT] Temperature: "..temperature.." °C" );
         print ( "[DHT] Humidity: "..humidity.."%" );
         
@@ -112,6 +126,8 @@ function getSensorData ()
     dht = nil;
     package.loaded [ "dht" ] = nil;
     
+    return temperature, humidity;
+    
 end
 
 function getJsonValueMessage ( value, unit )
@@ -129,12 +145,18 @@ function loop ()
     -- 4: STA_FAIL,
     -- 5: STA_GOTIP.
 
-    if ( wifi.sta.status () == wifi.STA_GOTIP ) then -- TODO change 5 to symbol
+    if ( wifi.sta.status () == wifi.STA_GOTIP ) then
     
         print ( wifi.sta.gethostname () );
         print ( wifi.sta.getip () );
         print ( wifi.sta.getmac () );
     
+        -- Setup MQTT client and events
+        if ( mqttClient == nul ) then
+            local mqttClientId = wifi.sta.gethostname ();
+            mqttClient = mqtt.Client ( mqttClientId, MQTT_KEEP_ALIVE_TIME, MQTT_USERNAME, MQTT_PASSWORD );
+        end
+
         -- Stop the loop
         tmr.stop ( 0 );
 
@@ -147,12 +169,16 @@ function loop ()
                 print ( "[MQTT] Connected to MQTT" )
                 print ( "[MQTT]   IP: ".. MQTT_BROKER_IP)
                 
-                getSensorData() 
+                local t, h = getSensorData();
                 
-                mqttClient:publish ( MQTT_TOPIC_TEMPERATURE, getJsonValueMessage ( temperature, "°C" ), 0, 0, -- topic, payload, qos, retain, callback
+                local qos = 0;
+                local retain = 1;
+                
+                mqttClient:publish ( MQTT_TOPIC_TEMPERATURE, getJsonValueMessage ( t, "°C" ), qos, retain, -- topic, payload, qos, retain, callback
                     function ( conn )
-                        mqttClient:publish ( MQTT_TOPIC_HUMIDITY, getJsonValueMessage ( humidity, "%" ), 0, 0, 
-                            function(conn)
+                        mqttClient:publish ( MQTT_TOPIC_HUMIDITY, getJsonValueMessage ( h, "%" ), qos, retain, 
+                            function ( conn )
+                                mqttClient:close ();
                                 print ( "Going to deep sleep for "..(TIME_BETWEEN_SENSOR_READINGS ).." seconds" );
                                 node.dsleep ( TIME_BETWEEN_SENSOR_READINGS * 1000 * 1000 );
                             end
