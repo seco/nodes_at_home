@@ -2,8 +2,8 @@
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-// #define HOME_WLAN
-#define DEV_WLAN
+#define HOME_WLAN
+// #define DEV_WLAN
 // #define XPERIA_WLAN
 // #define IPHONE_WLAN
 
@@ -72,8 +72,6 @@ Ticker ticker;
 volatile int tickerShiftDelay = DEFAULT_TICKER_DELAY;
 const int TICKER_RESOLUTION = 10; // one tick every 10 ms
 int tickerCounter = 0;
-
-volatile bool isInInterrupt = false;
 
 #define NO_DIRECTION 0
 #define HORIZONTAL_DIRECTION 1
@@ -151,7 +149,9 @@ boolean isDisplayCategoryTime = false;
 const int MQTT_PORT = 1883;
 const char* MQTT_CLIENT_ID = "ESP8266_text_node";
 
-#if defined HOME_WLAN or defined DEV_WLAN
+#if defined HOME_WLAN
+const IPAddress MQTT_SERVER ( 192, 168, 2, 117 );
+#elif defined DEV_WLAN
 const IPAddress MQTT_SERVER ( 192, 168, 2, 101 );
 #elif defined XPERIA_WLAN
 const IPAddress MQTT_SERVER ( 192, 168, 43, 78 );
@@ -309,13 +309,8 @@ void setup () {
 
 void mqttCallback ( char* topic, byte* payload, unsigned int payloadLength ) {
     
-    MY_SERIAL.print ( "[MQTT] mqttCallback isInInterrupt=" );
-    if ( isInInterrupt ) MY_SERIAL.println ( "true" );
-    else MY_SERIAL.println ( "false" );
     MY_SERIAL.print ( "[MQTT] payloadLength=" );
     MY_SERIAL.println ( payloadLength );
-    
-    while ( isInInterrupt ) delay ( 1 ); // wait
     
     MY_SERIAL.print ( "[MQTT] Message arrived [" );
     MY_SERIAL.print ( topic );
@@ -355,7 +350,7 @@ void mqttCallback ( char* topic, byte* payload, unsigned int payloadLength ) {
         char sensorLocation [20];
         char sensorType [20];
         while ( token ) {
-            MY_SERIAL.printf ( "[MQTT] token=%s\n", token );
+            // MY_SERIAL.printf ( "[MQTT] token=%s\n", token );
             if ( i == 2 ) {
                 strncpy ( sensorName, token, 20 );
             }
@@ -617,8 +612,6 @@ struct Command* findCommand ( int id ) {
 
 void doInterrupt () {
     
-    isInInterrupt = true;
-
     volatile int* val;
     
     tickerCounter++;
@@ -652,8 +645,6 @@ void doInterrupt () {
         
     }
     
-    isInInterrupt = false;
-
 }
 
 void initCommand ( int id, int direction, int from, int to, int next_id ) {
@@ -1418,7 +1409,6 @@ void loop() {
                             // displayCategory++;
                             displayCategoryPeriodCounter = DISPLAY_CATEGORY_PERIOD;
                             dontWait = true;
-                            MY_SERIAL.println ( "DONT WAIT" );
                         }
                         break;
                     default:
