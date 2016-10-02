@@ -39,7 +39,7 @@ using namespace ios;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-#define VERSION "V0.01 (" __DATE__ ", " __TIME__ ")"
+#define VERSION "V0.60 (" __DATE__ ", " __TIME__ ")"
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -140,7 +140,7 @@ boolean ledState;
 const int DISPLAY_CATEGORY_PERIOD = 10;
 int displayCategoryPeriodCounter = 100;
 int displayCategory = -1;
-const int MAX_DISPLAY_CATEGORY = 4 + 2;
+const int MAX_DISPLAY_CATEGORY = 4 + 9;
 
 boolean isDisplayCategoryTime = false;
 
@@ -167,12 +167,13 @@ const char* MQTT_TOPIC_DISPLAY_TEXT = "nodes@home/display/text";
 const char* MQTT_TOPIC_HELLO = "nodes@home/hello/matrix";
 const char* MQTT_TOPIC_TEMPERATURE = "nodes@home/sensor/+/+/temperature";
 const char* MQTT_TOPIC_HUMIDITY = "nodes@home/sensor/+/+/humidity";
+const char* MQTT_TOPIC_VOLTAGE = "nodes@home/sensor/+/+/voltage";
 
 const int DEFAULT_DISPLAY_TEXT_DURATION = 15;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
 
-const int NUM_SENSORS = 5;
+const int NUM_SENSORS = 3 * 3;
 char* sensorText [NUM_SENSORS] [200];
 bool isSensorText [NUM_SENSORS];
 
@@ -346,12 +347,20 @@ void mqttCallback ( char* topic, byte* payload, unsigned int payloadLength ) {
     else {
         char* token = strtok ( topic, "/" );
         int i = 0;
+        char topicBase [20];
+        char sensorMark [20];
         char sensorName [20];
         char sensorLocation [20];
         char sensorType [20];
         while ( token ) {
             // MY_SERIAL.printf ( "[MQTT] token=%s\n", token );
-            if ( i == 2 ) {
+            if ( i == 0 ) {
+                strncpy ( topicBase, token, 20 );
+            }
+            else if ( i == 1 ) {
+                strncpy ( sensorMark, token, 20 );
+            }
+            else if ( i == 2 ) {
                 strncpy ( sensorName, token, 20 );
             }
             else if ( i == 3 ) {
@@ -363,19 +372,52 @@ void mqttCallback ( char* topic, byte* payload, unsigned int payloadLength ) {
             token = strtok ( NULL, "/" );
             i++;
         }
-        char unit [20];
-        int index;
-        if ( strcmp ( sensorType, "temperature" ) == 0 ) {
-            strcpy ( unit, "°C" );
-            index = 0;
+        
+        if ( strcmp ( topicBase, "nodes@home" ) == 0 && strcmp ( sensorMark, "sensor" ) == 0 && strcmp ( sensorName, "DHT11" ) == 0 ) {
+
+            int index = 0;
+            
+            if ( strcmp ( sensorLocation, "lounge" ) == 0 ) {
+                index += 0 * 3;
+            }
+            else if ( strcmp ( sensorLocation, "roof" ) == 0 ) {
+                index += 1 * 3;
+            }
+            else if ( strcmp ( sensorLocation, "terrace" ) == 0 ) {
+                index += 2 * 3;
+            }
+            else {
+                index = -1;
+            }
+            
+            char unit [20];
+            if ( index > -1 ) {
+                if ( strcmp ( sensorType, "temperature" ) == 0 ) {
+                    strcpy ( unit, "°C" );
+                    index += 0;
+                }
+                else if ( strcmp ( sensorType, "humidity" ) == 0 ) {
+                    strcpy ( unit, "%" );
+                    index += 1;
+                }
+                else if ( strcmp ( sensorType, "voltage" ) == 0 ) {
+                    strcpy ( unit, "mV" );
+                    index += 2;
+                }
+                else {
+                    index = -1;
+                }
+            }
+            
+            MY_SERIAL.printf ( "sensor data: i=%d loc=%s type=%s\n", index, sensorLocation, sensorType );
+
+            if ( index > -1 ) {
+                isSensorText [index] = true;
+                int value = root ["value"];
+                snprintf ( (char*) (sensorText + index), 200, "%s@%s: %d%s", sensorName, sensorLocation, value, unit );
+            }
+            
         }
-        else if ( strcmp ( sensorType, "humidity" ) == 0 ) {
-            strcpy ( unit, "%" );
-            index = 1;
-        }
-        isSensorText [index] = true;
-        int value = root ["value"];
-        snprintf ( (char*) (sensorText + index), 200, "sensor %s@%s: %d%s", sensorName, sensorLocation, value, unit );
     }
 
 }
@@ -399,6 +441,7 @@ void mqttReconnect () {
             mqttClient.subscribe ( MQTT_TOPIC_DISPLAY_TEXT );
             mqttClient.subscribe ( MQTT_TOPIC_TEMPERATURE );
             mqttClient.subscribe ( MQTT_TOPIC_HUMIDITY );
+            mqttClient.subscribe ( MQTT_TOPIC_VOLTAGE );
       
         } 
         else {
@@ -1330,6 +1373,8 @@ char* getSensorText ( int sensor ) {
         if ( isSensorText [sensor] ) result = (char*) sensorText [sensor];
     }
     
+    MY_SERIAL.printf ( "getSensorText: sensor=%d result=%s\n", sensor, result );
+    
     return result;
     
 }
@@ -1398,8 +1443,15 @@ void loop() {
                         matrixAppendText ( getCurrentWeatherText () );
                         displayTextDuration = -1;
                         break;
-                    case 5: // sensor 0
-                    case 6: // sensor 1
+                    case 5: // sensor lounge temerature
+                    case 6: // sensor lounge humidity
+                    case 7: // sensor lounge voltage
+                    case 8: // sensor roof temerature
+                    case 9: // sensor roof humidity
+                    case 10: // sensor roof voltage
+                    case 11: // sensor terrace temerature
+                    case 12: // sensor terrace humidity
+                    case 13: // sensor terrace voltage
                         matrixInsertColumn = 0;
                         displayTextDuration = -1;
                         if ( isSensorText [sensor] ) {
