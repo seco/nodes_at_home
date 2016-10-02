@@ -2,19 +2,21 @@
 ### junand 23.09.2016
 ###
 
+# -------------------------------------------------------------------------------
 homeassistant:
   # Name of the location where Home Assistant is running
   name: Home-Assistant
   # Location required to calculate the time the sun rises and sets
-  latitude: 52.4992
-  longitude: 13.4307
+  latitude: 52.651089
+  longitude: 13.5338005
   # Impacts weather/sunrise data
-  elevation: 36
+  elevation: 59
   # metric for Metric, imperial for Imperial
   unit_system: metric
   # Pick yours from here: http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
   time_zone: Europe/Berlin
 
+# -------------------------------------------------------------------------------
 # mqtt broker
 mqtt:
   broker: 192.168.2.117
@@ -23,38 +25,84 @@ mqtt:
   keepalive: 120
   protocol: 3.1.1
 
+# -------------------------------------------------------------------------------
+# octoprint:
+  # host: 192.168.2.114
+  # api_key: B812C33EF73644898D854D70A2B1DD95
+  
+# -------------------------------------------------------------------------------
+# define all zones explicite and manual
+device_tracker:
+  platform: owntracks
+  max_gps_accuracy: 1500
+  waypoints: False
+  
+# -------------------------------------------------------------------------------
+# pictures from https://materialdesignicons.com/
+zone:
+    
+    - name: Home
+      passive: True
+      radius: 200
+      latitude: 52.651089
+      longitude: 13.5338005
+      icon: mdi:account-multiple
+      
+    - name: Wohnung Hannover
+      latitude: 52.357277
+      longitude: 9.767105
+      radius: 200
+      icon: mdi:home-outline
+      
+    - name: Zuhause
+      latitude: 52.651089
+      longitude: 13.5338005
+      radius: 200
+###      icon: mdi:account-multiple
+      icon: mdi:home
+
+
+# -------------------------------------------------------------------------------
 # Show links to resources in log and frontend
 ###introduction:
 
+# -------------------------------------------------------------------------------
 # Enables the frontend
 frontend:
 
+# -------------------------------------------------------------------------------
 http:
   # Uncomment this to add a password (recommended!)
   # api_password: PASSWORD
 
+# -------------------------------------------------------------------------------
 # Checks for available updates
 updater:
 
+# -------------------------------------------------------------------------------
 # Discover some devices automatically
 ###discovery:
 
+# -------------------------------------------------------------------------------
 # Allows you to issue voice commands from the frontend in enabled browsers
-conversation:
+###conversation:
 
+# -------------------------------------------------------------------------------
 # Enables support for tracking state changes over time.
 history:
 
+# -------------------------------------------------------------------------------
 # View all events in a logbook
 logbook:
 
+# -------------------------------------------------------------------------------
 # Track the sun
 sun:
 
-# Weather Prediction
+# -------------------------------------------------------------------------------
 sensor:
 
-  ###- platform: yr
+  - platform: yr
 
   - platform: openweathermap
     api_key: 29ab3e72b07b4dd4c3aca6db6ff3290d
@@ -65,16 +113,241 @@ sensor:
     - humidity
     - pressure
 
+  - platform: systemmonitor
+    resources:
+      - type: disk_use_percent
+        arg: /
+      - type: memory_use_percent
+      - type: processor_use  
+      - type: last_boot
+    
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/table/temperature
-    name: "DHT11@table"
+    name: "DHT11@table Temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
-    state_topic: nodes@home/test
-    name: "Test"
+    state_topic: nodes@home/sensor/DHT11/table/humidity
+    name: "DHT11@table Humidity"
     qos: 0
-    value_template: '{{ value }}'
+    unit_of_measurement: "%"
+    value_template: '{{ value_json.value }}'
 
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/table/voltage
+    name: "DHT11@table Voltage"
+    qos: 0
+    unit_of_measurement: "mV"
+    value_template: '{{ value_json.value }}'
+    
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/terrace/temperature
+    name: "DHT11@terrace Temperature"
+    qos: 0
+    unit_of_measurement: "°C"
+    value_template: '{{ value_json.value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/terrace/humidity
+    name: "DHT11@terrace Humidity"
+    qos: 0
+    unit_of_measurement: "%"
+    value_template: '{{ value_json.value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/terrace/voltage
+    name: "DHT11@terrace Voltage"
+    qos: 0
+    unit_of_measurement: "mV"
+    value_template: '{{ value_json.value }}'
+    
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/roof/temperature
+    name: "DHT11@roof Temperature"
+    qos: 0
+    unit_of_measurement: "°C"
+    value_template: '{{ value_json.value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/roof/humidity
+    name: "DHT11@roof Humidity"
+    qos: 0
+    unit_of_measurement: "%"
+    value_template: '{{ value_json.value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/roof/voltage
+    name: "DHT11@roof Voltage"
+    qos: 0
+    unit_of_measurement: "mV"
+    value_template: '{{ value_json.value }}'
+    
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/lounge/temperature
+    name: "DHT11@lounge Temperature"
+    qos: 0
+    unit_of_measurement: "°C"
+    value_template: '{{ value_json.value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/lounge/humidity
+    name: "DHT11@lounge Humidity"
+    qos: 0
+    unit_of_measurement: "%"
+    value_template: '{{ value_json.value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/lounge/voltage
+    name: "DHT11@lounge Voltage"
+    qos: 0
+    unit_of_measurement: "mV"
+    value_template: '{{ value_json.value }}'
+    
+  # - platform: cpuspeed
+    # name: "CPU"
+    
+  - platform: speedtest
+    name: "Speedtest"
+    minute:
+        - 0
+        - 30
+    monitored_conditions:
+        - ping
+        - download
+        - upload    
+
+  # - platform: octoprint
+    # name: OctoPrint
+    # monitored_conditions:
+      # - Temperatures
+      # - Current State
+      # - Job Percentage
+      
+# -------------------------------------------------------------------------------
+# binary_sensor:
+
+  # platform: octoprint
+  # name: OctoPrint
+  # monitored_conditions:
+    # - Printing
+    # - Printing Error
+    
+# -------------------------------------------------------------------------------
+group:
+
+    # ---------------------------------------------------------------------------
+    default_view:
+        view: yes
+        entities:
+            - updater.updater
+            - device_tracker.andreas_xperia
+
+    # ---------------------------------------------------------------------------
+    weather :
+        name: Wetter
+        view: yes
+        entities:
+            - sensor.yr_symbol
+            - sun.sun
+            - sensor.owm_condition
+            - sensor.owm_forecast
+            - sensor.owm_humidity
+            - sensor.owm_pressure
+            - sensor.owm_temperature
+            
+    # ---------------------------------------------------------------------------
+    rooms:
+        name: Räume
+        view: yes
+        entities:
+            - group.table
+            - group.terrace
+            - group.roof
+            - group.pool
+            
+    table:
+        name: Table
+        entities:
+            - sensor.dht11table_temperature
+            - sensor.dht11table_humidity
+            - sensor.dht11table_voltage
+            
+    terrace:
+        name: Terrace
+        entities:
+            - sensor.dht11terrace_temperature
+            - sensor.dht11terrace_humidity
+            - sensor.dht11terrace_voltage
+            
+    roof:
+        name: Roof
+        entities:
+            - sensor.dht11roof_temperature
+            - sensor.dht11roof_humidity
+            - sensor.dht11roof_voltage
+            
+    pool:
+        name: Lounge
+        entities:
+            - sensor.dht11lounge_temperature
+            - sensor.dht11lounge_humidity
+            - sensor.dht11lounge_water
+            - sensor.dht11lounge_voltage
+            
+    # ---------------------------------------------------------------------------
+    system:
+        name: System
+        view: yes
+        entities:
+            - group.system_dsl
+            - group.system_server
+            
+    system_dsl:
+        name: DSL
+        entities:
+            - sensor.speedtest_ping
+            - sensor.speedtest_download
+            - sensor.speedtest_upload
+            
+    system_server:
+        name: Server
+        entities:
+            - sensor.CPU
+            - sensor.cpu_use
+            - sensor.ram_use
+            - sensor.disk_use_
+            - sensor.last_boot
+
+    # ---------------------------------------------------------------------------
+    octoprint:
+        name: OctoPrint
+        view: yes
+        entities:
+            - group.octoprint_tool0
+            - group.octoprint_bed
+            - group.octoprint_state
+            
+    octoprint_state:
+        name: State
+        entities:
+            - sensor.octoprint_current_state
+            - sensor.octoprint_job_percentage
+            - binary_sensor.octoprint_printing
+            - binary_sensor.octoprint_printing_error
+            
+    octoprint_tool0:
+        name: Hot End
+        entities:
+            - sensor.octoprint_actual_tool0__temp
+            - sensor.octoprint_target_tool0__temp
+
+    octoprint_bed:
+        name: Bed
+        entities:
+            - sensor.octoprint_actual_bed__temp
+            - sensor.octoprint_target_bed__temp
+
+    # ---------------------------------------------------------------------------
+            
