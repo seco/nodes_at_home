@@ -4,17 +4,103 @@
 
 # -------------------------------------------------------------------------------
 homeassistant:
+
   # Name of the location where Home Assistant is running
-  name: Home-Assistant
+  name: Home
+  
   # Location required to calculate the time the sun rises and sets
   latitude: 52.651089
   longitude: 13.5338005
+  
   # Impacts weather/sunrise data
   elevation: 59
+  
   # metric for Metric, imperial for Imperial
   unit_system: metric
+  
   # Pick yours from here: http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
   time_zone: Europe/Berlin
+  
+  customize:
+
+    sensor.dht11table_temperature:
+        friendly_name: Temperatur TEST
+###        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11table_humidity:
+        friendly_name: Luftfeuchtigkeit TEST
+        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11table_voltage:
+        friendly_name: Spannungspegel TEST
+        entity_picture: /local/images/nodemcu.jpg
+
+    sensor.dht11terrace_temperature:
+        friendly_name: Temperatur Garage
+###        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11terrace_humidity:
+        friendly_name: Luftfeuchtigkeit Garage
+        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11terrace_voltage:
+        friendly_name: Spannungspegel Garage
+        entity_picture: /local/images/nodemcu.jpg
+
+    sensor.dht11lounge_temperature:
+        friendly_name: Temperatur Wohnzimmer
+###        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11lounge_humidity:
+        friendly_name: Luftfeuchtigkeit Wohnzimmer
+        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11lounge_voltage:
+        friendly_name: Spannungspegel Wohnzimmer
+        entity_picture: /local/images/nodemcu.jpg
+
+    sensor.dht11roof_temperature:
+        friendly_name: Temperatur Galerie
+###        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11roof_humidity:
+        friendly_name: Luftfeuchtigkeit Galerie
+        entity_picture: /local/images/DHT11.jpg
+
+    sensor.dht11roof_voltage:
+        friendly_name: Spannungspegel Galerie
+        entity_picture: /local/images/nodemcu.jpg
+        
+    device_tracker.111ninaxperiawlan:
+        friendly_name: Nina
+    
+    device_tracker.112noraxperiawlan:
+        friendly_name: Nora
+
+    device_tracker.118undinexperiawlan:
+        friendly_name: Undine
+        entity_picture: /local/images/Undine.jpg
+        
+    sensor.yr_symbol:
+        friendly_name: Aktuell (yr.no)
+        
+    sensor.owm_condition:
+        friendly_name: Aktuell (open weather)
+    
+    sensor.owm_forecast: 
+        friendly_name: Vorhersage (open weather)
+        
+    sensor.speedtest_ping:
+        friendly_name: Ping
+        entity_picture: /local/images/o2dsl2.jpg
+
+    sensor.speedtest_download:
+        friendly_name: Download
+        entity_picture: /local/images/o2dsl2.jpg
+
+    sensor.speedtest_upload:
+        friendly_name: Upload
+        entity_picture: /local/images/o2dsl2.jpg
 
 # -------------------------------------------------------------------------------
 # mqtt broker
@@ -31,14 +117,21 @@ mqtt:
   # api_key: B812C33EF73644898D854D70A2B1DD95
   
 # -------------------------------------------------------------------------------
-# define all zones explicite and manual
+# tracker
+
 device_tracker:
-  platform: owntracks
-  max_gps_accuracy: 1500
-  waypoints: False
+
+  - platform: owntracks
+    max_gps_accuracy: 1500
+    waypoints: False
+    
+  - platform: fritz
+    host: 192.168.2.1
   
 # -------------------------------------------------------------------------------
+# define all zones explicite and manual
 # pictures from https://materialdesignicons.com/
+
 zone:
     
     - name: Home
@@ -60,7 +153,24 @@ zone:
       radius: 200
 ###      icon: mdi:account-multiple
       icon: mdi:home
-
+      
+    - name: FI Hannover
+      latitude: 52.334167
+      longitude: 9.8232433
+      radius: 200
+      icon: mdi:domain
+    
+    - name: FI Münster
+      latitude: 51.98433
+      longitude: 7.63262
+      radius: 200
+      icon: mdi:domain
+    
+    - name: BA P'Berg
+      latitude: 52.541312
+      longitude: 13.426212
+      radius: 200
+      icon: mdi:domain
 
 # -------------------------------------------------------------------------------
 # Show links to resources in log and frontend
@@ -123,87 +233,95 @@ sensor:
     
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/table/temperature
-    name: "DHT11@table Temperature"
+    name: "DHT11@table_temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/table/humidity
-    name: "DHT11@table Humidity"
+    name: "DHT11@table_humidity"
     qos: 0
     unit_of_measurement: "%"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/table/voltage
-    name: "DHT11@table Voltage"
+    name: "DHT11@table_voltage"
     qos: 0
-    unit_of_measurement: "mV"
-    value_template: '{{ value_json.value }}'
+    unit_of_measurement: "V"
+    value_template: '{{ value_json.value | multiply  ( 0.001 ) }}'
+    # unit_of_measurement: "mV"
+    # value_template: '{{ value_json.value }}'
     
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/terrace/temperature
-    name: "DHT11@terrace Temperature"
+    name: "DHT11@terrace_temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/terrace/humidity
-    name: "DHT11@terrace Humidity"
+    name: "DHT11@terrace_humidity"
     qos: 0
     unit_of_measurement: "%"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/terrace/voltage
-    name: "DHT11@terrace Voltage"
+    name: "DHT11@terrace_voltage"
     qos: 0
-    unit_of_measurement: "mV"
-    value_template: '{{ value_json.value }}'
+    unit_of_measurement: "V"
+    value_template: '{{ value_json.value | multiply  ( 0.001 ) }}'
+    # unit_of_measurement: "mV"
+    # value_template: '{{ value_json.value }}'
     
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/roof/temperature
-    name: "DHT11@roof Temperature"
+    name: "DHT11@roof_temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/roof/humidity
-    name: "DHT11@roof Humidity"
+    name: "DHT11@roof_humidity"
     qos: 0
     unit_of_measurement: "%"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/roof/voltage
-    name: "DHT11@roof Voltage"
+    name: "DHT11@roof_voltage"
     qos: 0
-    unit_of_measurement: "mV"
-    value_template: '{{ value_json.value }}'
+    unit_of_measurement: "V"
+    value_template: '{{ value_json.value | multiply  ( 0.001 ) }}'
+    # unit_of_measurement: "mV"
+    # value_template: '{{ value_json.value }}'
     
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/lounge/temperature
-    name: "DHT11@lounge Temperature"
+    name: "DHT11@lounge_temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/lounge/humidity
-    name: "DHT11@lounge Humidity"
+    name: "DHT11@lounge_humidity"
     qos: 0
     unit_of_measurement: "%"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
     state_topic: nodes@home/sensor/DHT11/lounge/voltage
-    name: "DHT11@lounge Voltage"
+    name: "DHT11@lounge_voltage"
     qos: 0
-    unit_of_measurement: "mV"
-    value_template: '{{ value_json.value }}'
+    unit_of_measurement: "V"
+    value_template: '{{ value_json.value | multiply  ( 0.001 ) }}'
+    # unit_of_measurement: "mV"
+    # value_template: '{{ value_json.value }}'
     
   # - platform: cpuspeed
     # name: "CPU"
@@ -239,11 +357,33 @@ group:
 
     # ---------------------------------------------------------------------------
     default_view:
+        name: Home
         view: yes
         entities:
-            - updater.updater
             - device_tracker.andreas_xperia
+            # - device_tracker.undine_xperia
+            # - device_tracker.102andreasxperiawlan
+            - device_tracker.118undinexperiawlan
+            - device_tracker.111ninaxperiawlan
+            - device_tracker.112noraxperiawlan
+            - group.default_view__temperatures
+            - group.default_view__weather
+            
+            
+    default_view__temperatures:
+        name: Temperaturen
+        entities:
+            - sensor.dht11terrace_temperature
+            - sensor.dht11roof_temperature
+            - sensor.dht11lounge_temperature
 
+    default_view__weather:
+        name: Wetter
+        entities:
+            - sensor.yr_symbol
+            - sensor.owm_condition
+            - sensor.owm_forecast
+            
     # ---------------------------------------------------------------------------
     weather :
         name: Wetter
@@ -262,38 +402,37 @@ group:
         name: Räume
         view: yes
         entities:
-            - group.table
-            - group.terrace
-            - group.roof
-            - group.pool
+###            - group.rooms__table
+            - group.rooms__terrace
+            - group.rooms__roof
+            - group.rooms__lounge
             
-    table:
+    rooms__table:
         name: Table
         entities:
             - sensor.dht11table_temperature
             - sensor.dht11table_humidity
             - sensor.dht11table_voltage
             
-    terrace:
-        name: Terrace
+    rooms__terrace:
+        name: Garage
         entities:
             - sensor.dht11terrace_temperature
             - sensor.dht11terrace_humidity
             - sensor.dht11terrace_voltage
             
-    roof:
-        name: Roof
+    rooms__roof:
+        name: Galerie
         entities:
             - sensor.dht11roof_temperature
             - sensor.dht11roof_humidity
             - sensor.dht11roof_voltage
             
-    pool:
-        name: Lounge
+    rooms__lounge:
+        name: Wohnzimmer
         entities:
             - sensor.dht11lounge_temperature
             - sensor.dht11lounge_humidity
-            - sensor.dht11lounge_water
             - sensor.dht11lounge_voltage
             
     # ---------------------------------------------------------------------------
@@ -301,6 +440,7 @@ group:
         name: System
         view: yes
         entities:
+            - updater.updater
             - group.system_dsl
             - group.system_server
             
@@ -312,7 +452,7 @@ group:
             - sensor.speedtest_upload
             
     system_server:
-        name: Server
+        name: Server (Raspberry Pi 3)
         entities:
             - sensor.CPU
             - sensor.cpu_use
@@ -325,11 +465,11 @@ group:
         name: OctoPrint
         view: yes
         entities:
-            - group.octoprint_tool0
-            - group.octoprint_bed
-            - group.octoprint_state
+            - group.octoprint__tool0
+            - group.octoprint__bed
+            - group.octoprint__state
             
-    octoprint_state:
+    octoprint__state:
         name: State
         entities:
             - sensor.octoprint_current_state
@@ -337,17 +477,19 @@ group:
             - binary_sensor.octoprint_printing
             - binary_sensor.octoprint_printing_error
             
-    octoprint_tool0:
+    octoprint__tool0:
         name: Hot End
         entities:
             - sensor.octoprint_actual_tool0__temp
             - sensor.octoprint_target_tool0__temp
 
-    octoprint_bed:
+    octoprint__bed:
         name: Bed
         entities:
             - sensor.octoprint_actual_bed__temp
             - sensor.octoprint_target_bed__temp
 
     # ---------------------------------------------------------------------------
-            
+
+# -------------------------------------------------------------------------------
+    
