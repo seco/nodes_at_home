@@ -60,7 +60,8 @@ WIFI_SIGNAL_MODE = wifi.PHYMODE_N;
 -- In milliseconds. Remember that the sensor reading, 
 -- reboot and wifi reconnect takes a few seconds
 TIME_BETWEEN_SENSOR_READINGS = 15 * 60;     -- sec
--- TIME_BETWEEN_SENSOR_READINGS = 30;
+-- TIME_BETWEEN_SENSOR_READINGS = 20;
+TIME_WATCHDOG = 10;
 TIME_WIFI_WAIT_PERIOD = 1;                  -- sec
 TIME_WAIT_BEFORE_DEEPSLEEP = 1;              -- sec
 
@@ -174,7 +175,7 @@ function loop ()
         
         result = mqttClient:connect( mqttBrokerIp , MQTT_BROKER_PORT, 0, 
         
-            function ( conn )
+            function ( client )
             
                 print ( "[MQTT] connected to MQTT Broker" )
                 
@@ -201,7 +202,7 @@ function loop ()
                 )
             end,
 
-            function ( conn, reason ) 
+            function ( client, reason ) 
                 print ( "[MQTT] not connected reason=", reason );
             end
         
@@ -235,6 +236,6 @@ end
 tmr.alarm ( 0, TIME_WIFI_WAIT_PERIOD * 1000, tmr.ALARM_AUTO, function () loop() end ) -- timer_id, interval_ms, mode
 
 -- Watchdog loop, will force deep sleep the operation somehow takes to long
--- tmr.alarm ( 1, 4000, tmr.ALARM_AUTO, function() node.dsleep ( TIME_BETWEEN_SENSOR_READINGS * 1000 ) end )
+tmr.alarm ( 1, TIME_WATCHDOG * 1000, tmr.ALARM_AUTO, function() node.dsleep ( TIME_BETWEEN_SENSOR_READINGS * 1000 * 1000 ) end )
 
 -------------------------------------------------------------------------------
