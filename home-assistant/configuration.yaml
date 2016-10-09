@@ -101,7 +101,31 @@ homeassistant:
     sensor.speedtest_upload:
         friendly_name: Upload
         entity_picture: /local/images/o2dsl2.jpg
-
+        
+    light.rfhubfirst_lampkitchenlongstrip:
+        friendly_name: Lange Ledleiste
+    
+    light.rfhubfirst_lampkitchenshortstrip:
+        friendly_name: Kurze Ledleiste
+        
+    light.rfhubfirst_lamploungeblackbowl:
+        friendly_name: Bodenlampe
+    
+    light.rfhubfirst_lamploungereading:
+        friendly_name: Leselampe
+    
+    light.rfhubfirst_lamploungewhiteball:
+        friendly_name: Stehlampe an der Couch
+    
+    light.rfhubfirst_lampstudypillar:
+        friendly_name: Stehlampe am Drucker
+        
+    sensor.rfhubfirst_timestamp:
+        friendly_name: RF Hub Version
+        
+    sensor.rfhubfirst_version:
+        friendly_name: RF Hub Restart
+        
 # -------------------------------------------------------------------------------
 # mqtt broker
 mqtt:
@@ -114,7 +138,7 @@ mqtt:
 # -------------------------------------------------------------------------------
 # octoprint:
   # host: 192.168.2.114
-  # api_key: B812C33EF73644898D854D70A2B1DD95
+  # api_key: !secrects api_key_octoprint
   
 # -------------------------------------------------------------------------------
 # tracker
@@ -151,7 +175,6 @@ zone:
       latitude: 52.651089
       longitude: 13.5338005
       radius: 200
-###      icon: mdi:account-multiple
       icon: mdi:home
       
     - name: FI Hannover
@@ -215,7 +238,7 @@ sensor:
   - platform: yr
 
   - platform: openweathermap
-    api_key: 29ab3e72b07b4dd4c3aca6db6ff3290d
+    api_key: !secret api_key_openweather
     forecast: 1
     monitored_conditions:
     - weather
@@ -343,6 +366,18 @@ sensor:
       # - Current State
       # - Job Percentage
       
+  # version on the node
+  - platform: mqtt
+    name: rfhub@first_version
+    state_topic: nodes@home/switch/rfhub/first
+    value_template: '{{ value }}' ### TODO extract the third token Vn.nn
+      
+  - platform: mqtt
+    name: rfhub@first_timestamp
+    state_topic: nodes@home/switch/rfhub/first
+    # value_template: '{{ now () | timestamp_custom ( "%D.%M.%Y %H:%M:%S", true ) }}'
+    value_template: '{{ now () }}'
+      
 # -------------------------------------------------------------------------------
 # binary_sensor:
 
@@ -351,6 +386,69 @@ sensor:
   # monitored_conditions:
     # - Printing
     # - Printing Error
+    
+# -------------------------------------------------------------------------------
+light:
+
+    # TODO how to formulate json?
+    # payload_on: "{\"state\":\"on\"}"          -- default "ON"
+    # payload_off: "{\"state\":\"off\"}"        -- default "OFF"
+
+  - platform: mqtt
+    name: "rfhub@first_lampKitchenLongStrip"
+    state_topic: "nodes@home/switch/rfhub/first/lampKitchenLongStrip/state"
+    command_topic: "nodes@home/switch/rfhub/first/lampKitchenLongStrip"
+    optimistic: false
+    retain: false
+    
+  - platform: mqtt
+    name: "rfhub@first_lampKitchenShortStrip"
+    state_topic: "nodes@home/switch/rfhub/first/lampKitchenShortStrip/state"
+    command_topic: "nodes@home/switch/rfhub/first/lampKitchenShortStrip"
+    optimistic: false
+    retain: false
+    
+  - platform: mqtt
+    name: "rfhub@first_lampStudyPillar"
+    state_topic: "nodes@home/switch/rfhub/first/lampStudyPillar/state"
+    command_topic: "nodes@home/switch/rfhub/first/lampStudyPillar"
+    optimistic: false
+    retain: false
+    
+  - platform: mqtt
+    name: "rfhub@first_lampLoungeWhiteBall"
+    state_topic: "nodes@home/switch/rfhub/first/lampLoungeWhiteBall/state"
+    command_topic: "nodes@home/switch/rfhub/first/lampLoungeWhiteBall"
+    optimistic: false
+    retain: false
+    
+  - platform: mqtt
+    name: "rfhub@first_lampLoungeBlackBowl"
+    state_topic: "nodes@home/switch/rfhub/first/lampLoungeBlackBowl/state"
+    command_topic: "nodes@home/switch/rfhub/first/lampLoungeBlackBowl"
+    optimistic: false
+    retain: false
+    
+  - platform: mqtt
+    name: "rfhub@first_lampLoungeReading"
+    state_topic: "nodes@home/switch/rfhub/first/lampLoungeReading/state"
+    command_topic: "nodes@home/switch/rfhub/first/lampLoungeReading"
+    optimistic: false
+    retain: false
+    
+  - platform: mqtt
+    name: "rfhub@first_lamp1"
+    state_topic: "nodes@home/switch/rfhub/first/lamp1/state"
+    command_topic: "nodes@home/switch/rfhub/first/lamp1"
+    optimistic: false
+    retain: false
+    
+  - platform: mqtt
+    name: "rfhub@first_LAMP"
+    state_topic: "nodes@home/switch/rfhub/first/LAMP/state"
+    command_topic: "nodes@home/switch/rfhub/first/LAMP"
+    optimistic: false
+    retain: false
     
 # -------------------------------------------------------------------------------
 group:
@@ -402,17 +500,28 @@ group:
         name: Räume
         view: yes
         entities:
-###            - group.rooms__table
+            - group.rooms__lounge
+            - group.rooms__kitchen
             - group.rooms__terrace
             - group.rooms__roof
-            - group.rooms__lounge
+###            - group.rooms__test
             
-    rooms__table:
-        name: Table
+    rooms__lounge:
+        name: Wohnzimmer
         entities:
-            - sensor.dht11table_temperature
-            - sensor.dht11table_humidity
-            - sensor.dht11table_voltage
+            - light.rfhubfirst_lampLoungeWhiteBall
+            - light.rfhubfirst_lamploungeblackbowl
+            - light.rfhubfirst_lampLoungeReading
+            - light.rfhubfirst_lampStudyPillar
+            - sensor.dht11lounge_temperature
+            - sensor.dht11lounge_humidity
+            - sensor.dht11lounge_voltage
+            
+    rooms__kitchen:
+        name: Küche
+        entities:
+            - light.rfhubfirst_lampkitchenshortstrip
+            - light.rfhubfirst_lampkitchenlongstrip
             
     rooms__terrace:
         name: Garage
@@ -428,12 +537,13 @@ group:
             - sensor.dht11roof_humidity
             - sensor.dht11roof_voltage
             
-    rooms__lounge:
-        name: Wohnzimmer
+    rooms__test:
+        name: Test
         entities:
-            - sensor.dht11lounge_temperature
-            - sensor.dht11lounge_humidity
-            - sensor.dht11lounge_voltage
+            - switch.rfhubfirst_lamp1
+            - sensor.dht11table_temperature
+            - sensor.dht11table_humidity
+            - sensor.dht11table_voltage
             
     # ---------------------------------------------------------------------------
     system:
@@ -441,17 +551,18 @@ group:
         view: yes
         entities:
             - updater.updater
-            - group.system_dsl
-            - group.system_server
+            - group.system__dsl
+            - group.system__server
+            - group.system__nodes
             
-    system_dsl:
+    system__dsl:
         name: DSL
         entities:
             - sensor.speedtest_ping
             - sensor.speedtest_download
             - sensor.speedtest_upload
             
-    system_server:
+    system__server:
         name: Server (Raspberry Pi 3)
         entities:
             - sensor.CPU
@@ -459,6 +570,13 @@ group:
             - sensor.ram_use
             - sensor.disk_use_
             - sensor.last_boot
+            - sensor.rfhubfirst
+
+    system__nodes:
+        name: Nodes
+        entities:
+            - sensor.rfhubfirst_version
+            - sensor.rfhubfirst_timestamp
 
     # ---------------------------------------------------------------------------
     octoprint:
