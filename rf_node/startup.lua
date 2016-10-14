@@ -1,3 +1,10 @@
+--------------------------------------------------------------------
+--
+-- nodes@home/rf_node/startup
+-- author: andreas at jungierek dot de
+-- LICENSE http://opensource.org/licenses/MIT
+--
+--------------------------------------------------------------------
 -- junand 22.09.2016
 -- 27.09.2016 integrated some code from https://bigdanzblog.wordpress.com/2015/04/24/esp8266-nodemcu-interrupting-init-lua-during-boot/
 
@@ -10,10 +17,10 @@ require ( "espNode" );
 
 function abortInit()
 
-    -- initailize abort boolean flag
+    -- initialize abort boolean flag
     print ( "[STARTUP] press ENTER to abort" );
     
-    -- if <CR> is pressed, call abortTest
+    -- if <CR> is pressed, call abortStartup
     uart.on ( "data", "\r", abortStartup, 0 );
 
     -- start timer to execute startup function in 5 seconds

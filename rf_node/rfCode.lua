@@ -17,10 +17,12 @@ require ( "gpio" );
 --------------------------------------------------------------------
 -- vars
 
+local isSending = false;
+
 --------------------------------------------------------------------
 -- private
 
-function appendTable ( t1, t2 )
+local function appendTable ( t1, t2 )
 
     for i = 1, #t2 do
         t1 [#t1+1] = t2 [i]
@@ -30,7 +32,7 @@ function appendTable ( t1, t2 )
     
 end
 
-function sendCode ( code )
+local function sendCode ( code )
 
     print ( "[RF] repeats=", M.repeats, "period=", M.period, "code=", code );
 
@@ -65,13 +67,15 @@ function sendCode ( code )
     end
     appendTable ( delayTimes , syncDelayTimes );
 
-    gpio.serout ( M.pin, 1, delayTimes, M.repeats, 1 ); -- asynchron
+    -- asynchron
+    gpio.serout ( M.pin, 1, delayTimes, M.repeats, function () isSending = false; end ); 
     
 end
 
-function dequeue ()
+local function dequeue ()
 
-    if ( #M.queue > 0 ) then
+    if ( #M.queue > 0 and not isSending ) then
+        isSending = true;
         local code = table.remove ( M.queue, 1 );
         print ( "[RF] loop: code=", code );
         sendCode ( code );
