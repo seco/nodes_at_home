@@ -1,17 +1,17 @@
 -- junand 22.09.2016
 -- 27.09.2016 integrated some code from https://bigdanzblog.wordpress.com/2015/04/24/esp8266-nodemcu-interrupting-init-lua-during-boot/
 
-ABORT_WAIT_TIME = 100;
-STARTUP_WAIT_TIME = 5 * 1000;
+local ABORT_WAIT_TIME = 100;
+local STARTUP_WAIT_TIME = 5 * 1000;
 
-STARTUP_TIMER = 0;
+local STARTUP_TIMER = 0;
 
-APPLICATION = "rf_node";
+require ( "espNode" );
 
 function abortInit()
 
     -- initailize abort boolean flag
-    print ( "[INPUT] press ENTER to abort startup" );
+    print ( "[STARTUP] press ENTER to abort" );
     
     -- if <CR> is pressed, call abortTest
     uart.on ( "data", "\r", abortStartup, 0 );
@@ -25,7 +25,7 @@ function abortStartup ( data )
 
     tmr.unregister ( STARTUP_TIMER );   -- disable the start up timer
     uart.on ( "data" );                 -- stop capturing the uart
-    print ( "[SYSTEM] startup aborted" );
+    print ( "[STARTUP] aborted" );
     
 end
     
@@ -33,8 +33,8 @@ function startup ()
 
     uart.on ( "data" );                 -- stop capturing the uart
 
-    print ( "[SYSTEM] application " .. APPLICATION .. " is starting" );
-    dofile ( APPLICATION .. ".lua" );
+    print ( "[STARTUP] application " .. espNode.config.app .. " is starting" );
+    dofile ( espNode.config.app .. ".lua" );
 
 end
 
@@ -43,7 +43,6 @@ if ( adc.force_init_mode ( adc.INIT_VDD33 ) ) then
   return; -- don't bother continuing, the restart is scheduled
 end
 
-print ( "[SYSTEM] startup esp, waiting for application start" );
--- tmr.alarm ( 0, STARTUP_WAIT_TIME, tmr.ALARM_SINGLE, startup )
+print ( "[STARTUP] waiting for application start" );
 tmr.alarm ( STARTUP_TIMER, ABORT_WAIT_TIME, tmr.ALARM_SINGLE, abortInit )
 

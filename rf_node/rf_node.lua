@@ -3,78 +3,72 @@
 -------------------------------------------------------------------------------
 --  Settings
 
---- run mode ---
-RUN_MODE_PROD = 1;
-RUN_MODE_DEV = -1;
+VERSION = "V0.10";
 
-runMode = RUN_MODE_PROD;
--- runMode = RUN_MODE_DEV
+-- modules
+require ( "credential" );
+require ( "espNode" );
+package.loaded ["credential"] = nil;
+package.loaded ["espNode"] = nil;
+collectgarbage ();
 
-dofile ( "credential.lua" );
+require ( "rfCode" );
 
-RUNMODE_CONFIG = {
+--- rf ---
+local RF_PIN = 7;
+local RF_REPEATS = 8;
+local RF_PERIOD = 320;
 
-    [RUN_MODE_PROD] = { mqttBroker = "192.168.2.117", credentials = WIFI [RUN_MODE_PROD] },
-    [RUN_MODE_DEV]  = { mqttBroker = "192.168.0.100", credentials = WIFI [RUN_MODE_DEV] },
-    
-};
-
--- mac based prod config
--- only valid for prod
-MAC_TO_CONFIG = {
-
-    ["5c:cf:7f:16:4e:40"] = { mqttLocation = "first",  wifi = { ip = "192.168.2.20", gateway = "192.168.2.1", netmask = "255.255.255.0" } },
-
-};
-
---- MQTT ---
-MQTT_BROKER_PORT = 1883;
-MQTT_USERNAME = "";
-MQTT_PASSWORD = "";
-MQTT_KEEP_ALIVE_TIME = 120; -- sec
-
-MQTT_TOPIC_BASE = "nodes@home/switch/"
-MQTT_TOPIC_SWITCH = "rfhub";
-MQTT_LOCATION = "TEST";
-MQTT_TOPIC_HELLO = "hello";
-MQTT_TOPIC_VOLTAGE = "voltage";
-
-MQTT_QOS = 0;
-MQTT_RETAIN = 1;
+--- mqtt ---
+local MQTT_TOPIC_NODE = "nodes@home/" .. espNode.config.class .. "/" .. espNode.config.type .. "/" .. espNode.config.location;
+local MQTT_TOPIC_VOLTAGE = MQTT_TOPIC_NODE .. "/voltage";
+local MQTT_TOPIC_STATE = MQTT_TOPIC_NODE .. "/state";
 
 --- WIFI ---
 -- wifi.PHYMODE_B 802.11b, More range, Low Transfer rate, More current draw
 -- wifi.PHYMODE_G 802.11g, Medium range, Medium transfer rate, Medium current draw
 -- wifi.PHYMODE_N 802.11n, Least range, Fast transfer rate, Least current draw 
-WIFI_SIGNAL_MODE = wifi.PHYMODE_N;
+local WIFI_SIGNAL_MODE = wifi.PHYMODE_N;
 
-TIME_WIFI_WAIT_PERIOD = 1;                  -- sec
+local TIME_WIFI_WAIT_PERIOD = 1;                  -- sec
+local TIMER_WIFI_LOOP = 1;
 
--------------------------------------------------------------------------------
+-- modules
+
+require ( "cjson" );
+
+print ( "heap=", node.heap () );
+
+----------------------------------------------------------------------------------------
 -- mqtt data
 
-function getMacConfig ()
+-- from: http://lua-users.org/wiki/SplitJoin
+function split ( str, pat )
 
-    local result = nil;
-    
-    if ( runMode == RUN_MODE_PROD ) then
-        result = MAC_TO_CONFIG [wifi.sta.getmac ()];
+    local t = {};  -- NOTE: use {n = 0} in Lua-5.0
+    local fpat = "(.-)" .. pat;
+    local last_end = 1;
+    local s, e, cap = str:find ( fpat, 1 );
+    while s do
+        if s ~= 1 or cap ~= "" then
+            table.insert ( t, cap );
+        end
+        last_end = e + 1
+        s, e, cap = str:find ( fpat, last_end );
+    end
+    if last_end <= #str then
+        cap = str:sub ( last_end );
+        table.insert ( t, cap );
     end
     
-    return result;
-    
+    return t;
+   
 end
 
-function getMqttTopicBase ( mac )
+function splitTopic ( str )
 
-    local location = MQTT_LOCATION
-    local config = getMacConfig ();
-    if ( config ~= nil ) then
-        location = config.mqttLocation;
-    end
-
-    return MQTT_TOPIC_BASE .. MQTT_TOPIC_SWITCH .. "/" .. location .. "/";
-    
+   return split ( str, '[\\/]+' );
+   
 end
 
 -------------------------------------------------------------------------------
@@ -91,62 +85,59 @@ function loop ()
 
     if ( wifi.sta.status () == wifi.STA_GOTIP ) then
     
+        -- Stop the loop
+        tmr.stop ( TIMER_WIFI_LOOP );
+
         print ( "[WIFI] dnsname=" .. wifi.sta.gethostname () );
         print ( "[WIFI] network=", wifi.sta.getip () );
         print ( "[WIFI] mac=" .. wifi.sta.getmac () );
     
         -- Setup MQTT client and events
         if ( mqttClient == nil ) then
-            local mqttClientId = wifi.sta.gethostname ();
-            mqttClient = mqtt.Client ( mqttClientId, MQTT_KEEP_ALIVE_TIME, MQTT_USERNAME, MQTT_PASSWORD );
+            mqttClient = mqtt.Client ( wifi.sta.gethostname (), 120, "", "" ); -- ..., keep_alive_time, username, password
         end
 
-        -- Stop the loop
-        tmr.stop ( 0 );
-        
-        
+        print ( "[MQTT] connecting to " .. espNode.config.mqttBroker );
 
-        local mqttBrokerIp = RUNMODE_CONFIG [runMode].mqttBroker;
-        print ( "[MQTT] connecting to " .. mqttBrokerIp );
-
-        mqttClient:on ( "connect", 
-            function ( client )
-                print ( "[MQTT] CONNECTED" );
-            end
-        );
+        -- this is never called, because the last registration wins
+        -- mqttClient:on ( "connect", 
+            -- function ( client )
+                -- print ( "[MQTT] CONNECTED" );
+            -- end
+        -- );
             
         mqttClient:on ( "message", 
             function ( client, topic, payload )
-                print ( "[MQTT] message received topic=" .. topic .." payload=" .. (payload == nil and "nothing" or payload) );
+                print ( "[MQTT] message received topic=" .. topic .." payload=" .. (payload == nil and "***nothing***" or payload) );
+                -- if ( payload ~= nil ) then
+                if ( payload ) then
+                    local topicParts = splitTopic ( topic );
+                    local device = topicParts [#topicParts];
+                    rfCode.send ( device, payload );
+                    print ( "heap=", node.heap () );
+                end
             end
         );
             
-        mqttClient:on ( "offline", 
-            function ( client )
-                print ( "[MQTT] offline" );
-                print ( "[SYSTEM] Going to deep sleep for "..(TIME_BETWEEN_SENSOR_READINGS ).." seconds" );
-                node.dsleep ( TIME_BETWEEN_SENSOR_READINGS * 1000 * 1000 );
-            end
-        );
+        -- mqttClient:on ( "offline", 
+            -- function ( client )
+                -- print ( "[MQTT] offline" );
+            -- end
+        -- );
         
-        -- TODO use a second timer for detecting not connecting situation, for example if the broker ist down
-        result = mqttClient:connect( mqttBrokerIp , MQTT_BROKER_PORT, 0, 
+        -- TODO use a second timer for detecting not connecting situation, for example if the broker is  down
+        result = mqttClient:connect( espNode.config.mqttBroker , 1883, 0, 
         
             function ( client )
             
                 print ( "[MQTT] connected to MQTT Broker" )
+                print ( "[MQTT} node=", MQTT_TOPIC_NODE );
                 
-                print ( "[MQTT} base_topic=", getMqttTopicBase ( wifi.sta.getmac () ) );
+                local topic = MQTT_TOPIC_NODE .. "/+";
+                print ( "[MQTT] subscribe to topic=" .. topic );
+                mqttClient:subscribe ( topic, 0 ); -- ..., qos
                 
-                mqttClient:publish ( getMqttTopicBase ( wifi.sta.getmac () ) .. MQTT_TOPIC_HELLO, "Hello from " .. wifi.sta.gethostname (), MQTT_QOS, MQTT_RETAIN,
-                    function (  client )
-                        print ( "[MQTT] hello sent" );
-                        -- .../<switch_name>
-                        local topic = getMqttTopicBase ( wifi.sta.getmac () ) .. "+";
-                        print ( "[MQTT] subscribe to topic=" .. topic );
-                        mqttClient:subscribe ( topic, MQTT_QOS );
-                    end
-                )
+                mqttClient:publish ( MQTT_TOPIC_NODE, espNode.config.class .. " " .. espNode.config.type .. " " .. VERSION, 0, 1 ); -- ..., qos, retain
                 
             end,
 
@@ -166,20 +157,18 @@ end
 -- main
 
 -- Connect to the wifi network
-local credentials = RUNMODE_CONFIG [runMode].credentials;
-print ( "[WIFI] connecting to " .. credentials.ssid );
+print ( "[WIFI] connecting to " .. credential.ssid );
 wifi.setmode ( wifi.STATION );
 wifi.setphymode ( WIFI_SIGNAL_MODE );
-wifi.sta.config ( credentials.ssid, credentials.password );
+wifi.sta.config ( credential.ssid, credential.password );
 wifi.sta.connect ();
 
-local config = getMacConfig ();
-if ( config ~= nil ) then
-    print ( "[WIFI] fix ip=" .. config.wifi.ip );
-    wifi.sta.setip ( config.wifi );
+if ( NODE_CONFIG ~= nil ) then
+    print ( "[WIFI] fix ip=" .. NODE_CONFIG.wifi.ip );
+    wifi.sta.setip ( NODE_CONFIG.wifi );
 end
  
 -- loop to wait up to connected to wifi
-tmr.alarm ( 0, TIME_WIFI_WAIT_PERIOD * 1000, tmr.ALARM_AUTO, function () loop() end ) -- timer_id, interval_ms, mode
+tmr.alarm ( TIMER_WIFI_LOOP, TIME_WIFI_WAIT_PERIOD * 1000, tmr.ALARM_AUTO, function () loop() end ) -- timer_id, interval_ms, mode
 
 -------------------------------------------------------------------------------
