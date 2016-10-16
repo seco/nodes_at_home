@@ -12,16 +12,11 @@ local M = {};
 _G [moduleName] = M;
 
 require ( "rfCode" );
-require ( "mqttNode" );
 
 -------------------------------------------------------------------------------
 --  Settings
 
 M.version = "V0.10";
-
---- mqtt ---
-local MQTT_TOPIC_VOLTAGE = espNode.config.topic .. "/voltage";
-local MQTT_TOPIC_STATE = espNode.config.topic .. "/state";
 
 ----------------------------------------------------------------------------------------
 -- private
@@ -58,13 +53,6 @@ end
 
 -------------------------------------------------------------------------------
 -- mqtt callbacks
-
-local function connect ( client )
-
-    print ( "[APP] connect" );
-    -- nothing todo
-    
-end
 
 local function offline ( client )
 

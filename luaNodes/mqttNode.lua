@@ -89,11 +89,20 @@ local function wifiLoop ()
                 
                 local topic = espNode.config.topic .. "/+";
                 print ( "[MQTT] subscribe to topic=" .. topic );
-                M.client:subscribe ( topic, 0 ); -- ..., qos
-                print ( "[MQTT] send <" .. M.appNode.version .. "> to topic=" .. espNode.config.topic );
-                M.client:publish ( espNode.config.topic, M.appNode.version, 0, 1 ); -- ..., qos, retain
-                M.client:publish ( espNode.config.topic .. "/value/voltage", M.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
-                M.appNode.connect ( client );
+                M.client:subscribe ( topic, 0, -- ..., qos
+                    function ( client )
+                        print ( "[MQTT] send <" .. M.appNode.version .. "> to topic=" .. espNode.config.topic );
+                        client:publish ( espNode.config.topic, M.appNode.version, 0, 1, -- ..., qos, retain
+                            function ( client )
+                                client:publish ( espNode.config.topic .. "/value/voltage", createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1, -- qos, retain
+                                    function ( client )
+                                        M.appNode.connect ( client, espNode.config.topic );
+                                    end
+                                );
+                            end
+                        );
+                    end
+                );
                 
             end,
 
@@ -123,6 +132,12 @@ local function initAppNode ( app )
     
 end
 
+function createJsonValueMessage ( value, unit )
+
+    return [[{"value":]] .. value .. [[, "unit":"]] .. unit .. [["}]];
+    
+end
+
 --------------------------------------------------------------------
 -- public
 
@@ -140,18 +155,12 @@ function M.start ( app )
     tmr.alarm ( TIMER_VOLTAGE_LOOP, TIMER_VOLTAGE_PERIOD * 1000, tmr.ALARM_AUTO, -- timer_id, interval_ms, mode
         function () 
             print ( "[MQTT] send voltage" );
-            M.client:publish ( espNode.config.topic .. "/voltage", M.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
+            M.client:publish ( espNode.config.topic .. "/value/voltage", createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
         end 
     ) 
 
 end
   
-function M.createJsonValueMessage ( value, unit )
-
-    return [[{"value":]] .. value .. [[, "unit":"]] .. unit .. [["}]];
-    
-end
-
 -------------------------------------------------------------------------------
 -- main
 

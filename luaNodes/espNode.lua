@@ -27,6 +27,36 @@ local NODE_CONFIG_TAB = {
                     topic = "nodes@home/switch/rfhub/first",
                 },
 
+    [1495931] = { 
+                    app = "tempNode",
+                    mode = "prod",
+                    class = "sensor", type = "DHT11", location = "lounge",  
+                    wifi = { ip = "192.168.2.21", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
+                    mqttBroker = "192.168.2.117",
+                    -- topic = "nodes@home/" .. class .. "/" .. type .. "/" .. location,
+                    topic = "nodes@home/sensor/DHT11/lounge",
+                },
+
+    [-2] = { 
+                    app = "tempNode",
+                    mode = "prod",
+                    class = "sensor", type = "DHT11", location = "roof",  
+                    wifi = { ip = "192.168.2.22", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
+                    mqttBroker = "192.168.2.117",
+                    -- topic = "nodes@home/" .. class .. "/" .. type .. "/" .. location,
+                    topic = "nodes@home/sensor/DHT11/roof",
+                },
+
+    [-3] = { 
+                    app = "tempNode",
+                    mode = "prod",
+                    class = "sensor", type = "DHT11", location = "terrace",  
+                    wifi = { ip = "192.168.2.23", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
+                    mqttBroker = "192.168.2.117",
+                    -- topic = "nodes@home/" .. class .. "/" .. type .. "/" .. location,
+                    topic = "nodes@home/sensor/DHT11/terrace",
+                },
+
 };
 
 --------------------------------------------------------------------
