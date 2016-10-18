@@ -57,7 +57,8 @@ end
 local function offline ( client )
 
     print ( "[APP] offline" );
-    -- TODO reconnect to broker
+    
+    return true; -- restart mqtt connection
     
 end
 

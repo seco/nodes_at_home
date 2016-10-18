@@ -42,7 +42,7 @@ local function wifiLoop ()
     if ( wifi.sta.status () == wifi.STA_GOTIP ) then
     
         -- Stop the loop
-        tmr.stop ( TIMER_WIFI_LOOP );
+        -- tmr.stop ( TIMER_WIFI_LOOP );
 
         print ( "[WIFI] dnsname=" .. wifi.sta.gethostname () );
         print ( "[WIFI] network=", wifi.sta.getip () );
@@ -50,8 +50,8 @@ local function wifiLoop ()
     
         -- Setup MQTT client and events
         if ( M.client == nil ) then
-            -- TODO bette maatClientName
-            M.client = mqtt.Client ( wifi.sta.gethostname (), 120, "", "" ); -- ..., keep_alive_time, username, password
+            local mqttClientName = wifi.sta.gethostname () .. "-" .. espNode.config.class .. "-" .. espNode.config.type .. "-" .. espNode.config.location;
+            M.client = mqtt.Client ( mqttClientName, 120, "", "" ); -- ..., keep_alive_time, username, password
         end
 
         print ( "[MQTT] connecting to " .. espNode.config.mqttBroker );
@@ -74,7 +74,11 @@ local function wifiLoop ()
         M.client:on ( "offline", 
             function ( client )
                 print ( "[MQTT] offline" );
-                M.appNode.offline ( client );
+                local restartMqtt = M.appNode.offline ( client );
+                if ( restartMqtt ) then
+                    print ( "[MQTT] restart connection" );
+                    tmr.alarm ( TIMER_WIFI_LOOP, TIMER_WIFI_PERIOD * 1000, tmr.ALARM_AUTO, function () wifiLoop() end ) -- timer_id, interval_ms, mode
+                end
             end
         );
         
@@ -84,6 +88,9 @@ local function wifiLoop ()
         
             function ( client )
             
+                -- Stop the loop only if connected
+                tmr.stop ( TIMER_WIFI_LOOP );
+
                 print ( "[MQTT] connected to MQTT Broker" )
                 print ( "[MQTT} node=", espNode.config.topic );
                 
@@ -111,7 +118,6 @@ local function wifiLoop ()
             end
         
         );
-        M.client = M.client;
         print ( "[MQTT] connect result=", result );
     else
         print ( "[WIFI] Connecting..." );
@@ -119,7 +125,7 @@ local function wifiLoop ()
     
 end
 
-local function noop () end
+local function noop () return false; end
 
 local function initAppNode ( app )
 

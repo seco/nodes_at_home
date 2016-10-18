@@ -93,6 +93,8 @@ local function offline ( client )
     print ( "[APP] Going to deep sleep for "..(TIME_BETWEEN_SENSOR_READINGS ).." seconds" );
     node.dsleep ( TIME_BETWEEN_SENSOR_READINGS * 1000 * 1000 );
     
+    return false; -- dont restart mqtt connection
+    
 end
 
 local function message ( client, topic, payload )

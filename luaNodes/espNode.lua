@@ -23,8 +23,7 @@ local NODE_CONFIG_TAB = {
                     class = "switch", type = "rfhub", location = "first",  
                     wifi = { ip = "192.168.2.20", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
                     mqttBroker = "192.168.2.117",
-                    -- topic = "nodes@home/" .. class .. "/" .. type .. "/" .. location,
-                    topic = "nodes@home/switch/rfhub/first",
+                    topic = "***nodes@home/switch/rfhub/first",
                 },
 
     [1495931] = { 
@@ -33,8 +32,7 @@ local NODE_CONFIG_TAB = {
                     class = "sensor", type = "DHT11", location = "lounge",  
                     wifi = { ip = "192.168.2.21", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
                     mqttBroker = "192.168.2.117",
-                    -- topic = "nodes@home/" .. class .. "/" .. type .. "/" .. location,
-                    topic = "nodes@home/sensor/DHT11/lounge",
+                    topic = "***nodes@home/sensor/DHT11/lounge",
                 },
 
     [-2] = { 
@@ -43,8 +41,7 @@ local NODE_CONFIG_TAB = {
                     class = "sensor", type = "DHT11", location = "roof",  
                     wifi = { ip = "192.168.2.22", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
                     mqttBroker = "192.168.2.117",
-                    -- topic = "nodes@home/" .. class .. "/" .. type .. "/" .. location,
-                    topic = "nodes@home/sensor/DHT11/roof",
+                    topic = "***nodes@home/sensor/DHT11/roof",
                 },
 
     [-3] = { 
@@ -53,8 +50,7 @@ local NODE_CONFIG_TAB = {
                     class = "sensor", type = "DHT11", location = "terrace",  
                     wifi = { ip = "192.168.2.23", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
                     mqttBroker = "192.168.2.117",
-                    -- topic = "nodes@home/" .. class .. "/" .. type .. "/" .. location,
-                    topic = "nodes@home/sensor/DHT11/terrace",
+                    topic = "***nodes@home/sensor/DHT11/terrace",
                 },
 
 };
@@ -71,6 +67,9 @@ local NODE_CONFIG_TAB = {
 print ( "[MODULE] loaded", moduleName )
 
 M.config = NODE_CONFIG_TAB [node.chipid ()];
+
+-- node base topic
+M.config.topic = "nodes@home/" .. M.config.class .. "/" .. M.config.type .. "/" .. M.config.location;
 
 return M;
 
