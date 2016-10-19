@@ -11,8 +11,6 @@ local moduleName = ...;
 local M = {};
 _G [moduleName] = M;
 
-require ( "dht" );
-
 -------------------------------------------------------------------------------
 --  Settings
 

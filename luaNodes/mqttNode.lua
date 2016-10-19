@@ -11,9 +11,11 @@ local moduleName = ...;
 local M = {};
 _G [moduleName] = M;
 
+require ( "espConfig" );
 require ( "mqtt" );
 require ( "wifi" );
 require ( "adc" );
+require ( "util" );
 
 -------------------------------------------------------------------------------
 --  Settings
@@ -50,11 +52,11 @@ local function wifiLoop ()
     
         -- Setup MQTT client and events
         if ( M.client == nil ) then
-            local mqttClientName = wifi.sta.gethostname () .. "-" .. espNode.config.class .. "-" .. espNode.config.type .. "-" .. espNode.config.location;
+            local mqttClientName = wifi.sta.gethostname () .. "-" .. espConfig.node.class .. "-" .. espConfig.node.type .. "-" .. espConfig.node.location;
             M.client = mqtt.Client ( mqttClientName, 120, "", "" ); -- ..., keep_alive_time, username, password
         end
 
-        print ( "[MQTT] connecting to " .. espNode.config.mqttBroker );
+        print ( "[MQTT] connecting to " .. espConfig.node.mqttBroker );
 
         -- this is never called, because the last registration wins
         -- M.client:on ( "connect", 
@@ -69,7 +71,7 @@ local function wifiLoop ()
                 print ( "[MQTT] message received topic=" .. topic .." payload=" .. (payload == nil and "***nothing***" or payload) );
                 if ( payload ) then
                     -- check for update
-                    if ( topic == espNode.config.topic .. "/service/update" ) then 
+                    if ( topic == espConfig.node.topic .. "/service/update" ) then 
                         -- start update procedure
                         print ( "UPDATE" );
                         -- TODO
@@ -92,7 +94,7 @@ local function wifiLoop ()
             end
         );
         
-        local result = M.client:connect( espNode.config.mqttBroker , 1883, 0, 0, -- broker, port, secure, autoreconnect
+        local result = M.client:connect( espConfig.node.mqttBroker , 1883, 0, 0, -- broker, port, secure, autoreconnect
         
             function ( client )
             
@@ -100,24 +102,24 @@ local function wifiLoop ()
                 tmr.stop ( TIMER_WIFI_LOOP );
 
                 print ( "[MQTT] connected to MQTT Broker" )
-                print ( "[MQTT} node=", espNode.config.topic );
+                print ( "[MQTT} node=", espConfig.node.topic );
                 
                 -- subscribe to update topic
-                local topic = espNode.config.topic .. "/service/update";
+                local topic = espConfig.node.topic .. "/service/update";
                 print ( "[MQTT] subscribe to topic=" .. topic );
                 client:subscribe ( topic, 2, -- ..., qos: receive only once -> we receiving the hello message from this node
                     function ( client )
                         -- subscribe to all topics based on base topic of the node
-                        local topic = espNode.config.topic .. "/+";
+                        local topic = espConfig.node.topic .. "/+";
                         print ( "[MQTT] subscribe to topic=" .. topic );
                         client:subscribe ( topic, 0, -- ..., qos
                             function ( client )
-                                print ( "[MQTT] send <" .. M.appNode.version .. "> to topic=" .. espNode.config.topic );
-                                client:publish ( espNode.config.topic, M.appNode.version, 0, 1, -- ..., qos, retain
+                                print ( "[MQTT] send <" .. M.appNode.version .. "> to topic=" .. espConfig.node.topic );
+                                client:publish ( espConfig.node.topic, M.appNode.version, 0, 1, -- ..., qos, retain
                                     function ( client )
-                                        client:publish ( espNode.config.topic .. "/value/voltage", createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1, -- qos, retain
+                                        client:publish ( espConfig.node.topic .. "/value/voltage", util.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1, -- qos, retain
                                             function ( client )
-                                                M.appNode.connect ( client, espNode.config.topic );
+                                                M.appNode.connect ( client, espConfig.node.topic );
                                             end
                                         );
                                     end
@@ -154,12 +156,6 @@ local function initAppNode ( app )
     
 end
 
-function createJsonValueMessage ( value, unit )
-
-    return [[{"value":]] .. value .. [[, "unit":"]] .. unit .. [["}]];
-    
-end
-
 --------------------------------------------------------------------
 -- public
 
@@ -177,7 +173,7 @@ function M.start ( app )
     tmr.alarm ( TIMER_VOLTAGE_LOOP, TIMER_VOLTAGE_PERIOD * 1000, tmr.ALARM_AUTO, -- timer_id, interval_ms, mode
         function () 
             print ( "[MQTT] send voltage" );
-            M.client:publish ( espNode.config.topic .. "/value/voltage", createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
+            M.client:publish ( espConfig.node.topic .. "/value/voltage", util.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
         end 
     );
 

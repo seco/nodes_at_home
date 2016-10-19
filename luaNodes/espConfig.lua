@@ -76,10 +76,10 @@ local NODE_CONFIG_TAB = {
 
 print ( "[MODULE] loaded", moduleName )
 
-M.config = NODE_CONFIG_TAB [node.chipid ()];
+M.node = NODE_CONFIG_TAB [node.chipid ()];
 
 -- node base topic
-M.config.topic = "nodes@home/" .. M.config.class .. "/" .. M.config.type .. "/" .. M.config.location;
+M.node.topic = "nodes@home/" .. M.node.class .. "/" .. M.node.type .. "/" .. M.node.location;
 
 return M;
 

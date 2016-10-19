@@ -12,9 +12,9 @@ local moduleName = ...;
 local M = {};
 _G [moduleName] = M;
 
-require ( "espNode" );
-require ( "credential" ).init ( espNode.config.mode );
-package.loaded ["espNode"] = nil;
+require ( "espConfig" );
+require ( "credential" ).init ( espConfig.node.mode );
+package.loaded ["espConfig"] = nil;
 package.loaded ["credential"] = nil;
 collectgarbage ();
 
@@ -57,20 +57,20 @@ local function startup()
         function () 
             -- stop capturing the uart
             uart.on ( "data" );
-            print ( "[STARTUP] application " .. espNode.config.app .. " is starting" );
+            print ( "[STARTUP] application " .. espConfig.node.app .. " is starting" );
             -- Connect to the wifi network
             print ( "[WIFI] connecting to " .. credential.ssid );
             wifi.setmode ( wifi.STATION );
             wifi.setphymode ( WIFI_SIGNAL_MODE );
             wifi.sta.config ( credential.ssid, credential.password );
             wifi.sta.connect ();
-            local wificfg = espNode.config.wifi;
+            local wificfg = espConfig.node.wifi;
             if ( wificfg ) then
                 print ( "[WIFI] fix ip=" .. wificfg.ip );
                 wifi.sta.setip ( wificfg );
             end
              -- start app
-            local app = require ( espNode.config.app );
+            local app = require ( espConfig.node.app );
             mqttNode.start ( app );
             -- app.start ();
         end 
