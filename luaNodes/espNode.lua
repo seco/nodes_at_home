@@ -14,43 +14,53 @@ _G [moduleName] = M;
 --------------------------------------------------------------------
 -- vars
 
+local PROD_MODE = "prod";
+local PROD_GATEWAY = "192.168.2.1";
+local PROD_NETMASK = "255.255.255.0";
+local PROD_MQTT_BROKER = "192.168.2.117";
+
 -- key is node.chipid ()
 local NODE_CONFIG_TAB = {
 
     [1461824] = { 
                     app = "rfNode",
-                    mode = "prod",
+                    mode = PROD_MODE,
                     class = "switch", type = "rfhub", location = "first",  
-                    wifi = { ip = "192.168.2.20", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
-                    mqttBroker = "192.168.2.117",
-                    topic = "***nodes@home/switch/rfhub/first",
+                    wifi = { ip = "192.168.2.20", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
+                    mqttBroker = PROD_MQTT_BROKER,
                 },
 
     [1495931] = { 
                     app = "tempNode",
-                    mode = "prod",
+                    mode = PROD_MODE,
                     class = "sensor", type = "DHT11", location = "lounge",  
-                    wifi = { ip = "192.168.2.21", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
-                    mqttBroker = "192.168.2.117",
-                    topic = "***nodes@home/sensor/DHT11/lounge",
+                    wifi = { ip = "192.168.2.21", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
+                    mqttBroker = PROD_MQTT_BROKER,
                 },
 
     [-2] = { 
                     app = "tempNode",
-                    mode = "prod",
+                    mode = PROD_MODE,
                     class = "sensor", type = "DHT11", location = "roof",  
-                    wifi = { ip = "192.168.2.22", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
-                    mqttBroker = "192.168.2.117",
-                    topic = "***nodes@home/sensor/DHT11/roof",
+                    wifi = { ip = "192.168.2.22", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
+                    mqttBroker = PROD_MQTT_BROKER,
                 },
 
     [-3] = { 
                     app = "tempNode",
-                    mode = "prod",
+                    mode = PROD_MODE,
                     class = "sensor", type = "DHT11", location = "terrace",  
-                    wifi = { ip = "192.168.2.23", gateway = "192.168.2.1", netmask = "255.255.255.0" }, 
-                    mqttBroker = "192.168.2.117",
-                    topic = "***nodes@home/sensor/DHT11/terrace",
+                    wifi = { ip = "192.168.2.23", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
+                    mqttBroker = PROD_MQTT_BROKER,
+                },
+                
+    -- test
+    [8391351] = {
+                    app = "rfNode",
+                    mode = PROD_MODE,
+                    class = "switch", type = "test", location = "nowhere",  
+                    wifi = { ip = "192.168.2.25", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
+                    mqttBroker = PROD_MQTT_BROKER,
                 },
 
 };

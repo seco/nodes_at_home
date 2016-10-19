@@ -16,7 +16,7 @@ require ( "dht" );
 -------------------------------------------------------------------------------
 --  Settings
 
-M.version = "V0.10";
+M.version = "V0.10 (tempNode)";
 
 local TIME_BETWEEN_SENSOR_READINGS = 15 * 60;     -- sec
 
@@ -114,7 +114,7 @@ print ( "heap=", node.heap () );
 
 M.connect = connect;
 M.offline = offline;
-M.message = message;
+-- M.message = message;
 
 return M;
 

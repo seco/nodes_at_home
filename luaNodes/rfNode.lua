@@ -12,15 +12,16 @@ local M = {};
 _G [moduleName] = M;
 
 require ( "rfCode" );
+require ( "mqttNode" );
 
 -------------------------------------------------------------------------------
 --  Settings
 
-M.version = "V0.10";
+M.version = "V0.10 (rfNode)";
 
 ----------------------------------------------------------------------------------------
 -- private
--- mqtt data
+-- mqtt callbacks
 
 -- from: http://lua-users.org/wiki/SplitJoin
 local function split ( str, pat )
@@ -28,7 +29,7 @@ local function split ( str, pat )
     local t = {};  -- NOTE: use {n = 0} in Lua-5.0
     local fpat = "(.-)" .. pat;
     local last_end = 1;
-    local s, e, cap = str:find ( fpat, 1 );
+    local s, e, cap = str:find ( fpat, last_end );
     while s do
         if s ~= 1 or cap ~= "" then
             table.insert ( t, cap );
@@ -51,9 +52,6 @@ local function splitTopic ( str )
    
 end
 
--------------------------------------------------------------------------------
--- mqtt callbacks
-
 local function offline ( client )
 
     print ( "[APP] offline" );
@@ -65,12 +63,10 @@ end
 local function message ( client, topic, payload )
 
     print ( "[APP] message: topic=", topic, " payload=", payload );
-    if ( payload ) then
-        local topicParts = splitTopic ( topic );
-        local device = topicParts [#topicParts];
-        rfCode.send ( device, payload );
-        print ( "heap=", node.heap () );
-    end
+    local topicParts = splitTopic ( topic );
+    local device = topicParts [#topicParts];
+    rfCode.send ( device, payload );
+    print ( "heap=", node.heap () );
 
 end
 
@@ -83,7 +79,7 @@ end
 print ( "[MODULE] loaded", moduleName )
 print ( "heap=", node.heap () );
 
-M.connect = connect;
+-- M.connect = connect;
 M.offline = offline;
 M.message = message;
 

@@ -67,7 +67,19 @@ local function wifiLoop ()
         M.client:on ( "message", 
             function ( client, topic, payload )
                 print ( "[MQTT] message received topic=" .. topic .." payload=" .. (payload == nil and "***nothing***" or payload) );
-                M.appNode.message ( client, topic, payload );
+                if ( payload ) then
+                    -- check for update
+                    if ( topic == espNode.config.topic ) then 
+                        if ( payload == "UPDATE" ) then
+                            -- start update procedure
+                            print ( "UPDATE" );
+                            -- TODO
+                            -- require ( "update" ).start ();
+                        end
+                    else
+                        M.appNode.message ( client, topic, payload );
+                    end
+                end
             end
         );
             
@@ -82,9 +94,7 @@ local function wifiLoop ()
             end
         );
         
-        -- TODO use a second timer for detecting not connecting situation, for example if the broker is  down
-        -- local result = M.client:connect( espNode.config.mqttBroker , 1883, 0, 
-        result = M.client:connect( "192.168.2.117" , 1883, 0, 
+        local result = M.client:connect( espNode.config.mqttBroker , 1883, 0, 
         
             function ( client )
             
@@ -94,16 +104,24 @@ local function wifiLoop ()
                 print ( "[MQTT] connected to MQTT Broker" )
                 print ( "[MQTT} node=", espNode.config.topic );
                 
-                local topic = espNode.config.topic .. "/+";
+                -- subscribe to update topic
+                local topic = espNode.config.topic;
                 print ( "[MQTT] subscribe to topic=" .. topic );
-                M.client:subscribe ( topic, 0, -- ..., qos
+                client:subscribe ( topic, 2, -- ..., qos: receive only once -> we receiving the hello message from this node
                     function ( client )
-                        print ( "[MQTT] send <" .. M.appNode.version .. "> to topic=" .. espNode.config.topic );
-                        client:publish ( espNode.config.topic, M.appNode.version, 0, 1, -- ..., qos, retain
+                        -- subscribe to all topics based on base topic of the node
+                        local topic = espNode.config.topic .. "/+";
+                        print ( "[MQTT] subscribe to topic=" .. topic );
+                        client:subscribe ( topic, 0, -- ..., qos
                             function ( client )
-                                client:publish ( espNode.config.topic .. "/value/voltage", createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1, -- qos, retain
+                                print ( "[MQTT] send <" .. M.appNode.version .. "> to topic=" .. espNode.config.topic );
+                                client:publish ( espNode.config.topic, M.appNode.version, 0, 1, -- ..., qos, retain
                                     function ( client )
-                                        M.appNode.connect ( client, espNode.config.topic );
+                                        client:publish ( espNode.config.topic .. "/value/voltage", createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1, -- qos, retain
+                                            function ( client )
+                                                M.appNode.connect ( client, espNode.config.topic );
+                                            end
+                                        );
                                     end
                                 );
                             end
