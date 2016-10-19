@@ -43,11 +43,13 @@ function getSensorData ()
     
         print ( "[DHT] Checksum error" );
         temperature = -1;
+        humidity = 0;
         
     elseif( status == dht.ERROR_TIMEOUT ) then
     
         print ( "[DHT] Time out" );
         temperature = -2;
+        humidity = 0;
         
     end
     
@@ -74,15 +76,27 @@ local function connect ( client, baseTopic )
     
     local t, h = getSensorData();
 
+    print ( "[APP] publish temperature t=", t );
     client:publish ( baseTopic .. "/value/temperature", createJsonValueMessage ( t, "C" ), 0, 1, -- qos, retain
         function ( client )
+            print ( "[APP] publish temperature h=", h );
             client:publish ( baseTopic .. "/value/humidity", createJsonValueMessage ( h, "%" ), 0, 1, -- qos, retain
                 function ( client )
-                    client:close ();
+                    -- wait a minute with closing connection
+                    print ( "[APP] initiate alarm for closing connection" );
+                    tmr.alarm ( 3, 60 * 1000, tmr.ALARM_SINGLE,  -- timer_id, interval_ms, mode
+                        function () 
+                            print ( "[APP] closing connection" );
+                            client:close ();
+                            print ( "[APP] going to deep sleep" );
+                            node.dsleep ( (TIME_BETWEEN_SENSOR_READINGS - 60) * 1000 * 1000 );
+                            -- node.dsleep ( (90 - 60) * 1000 * 1000 );
+                        end
+                    );
                 end
-            )
+            );
         end
-    )
+    );
     
 end
 
@@ -113,7 +127,7 @@ print ( "[MODULE] loaded", moduleName )
 print ( "heap=", node.heap () );
 
 M.connect = connect;
-M.offline = offline;
+-- M.offline = offline;
 -- M.message = message;
 
 return M;

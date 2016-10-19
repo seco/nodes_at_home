@@ -69,13 +69,11 @@ local function wifiLoop ()
                 print ( "[MQTT] message received topic=" .. topic .." payload=" .. (payload == nil and "***nothing***" or payload) );
                 if ( payload ) then
                     -- check for update
-                    if ( topic == espNode.config.topic ) then 
-                        if ( payload == "UPDATE" ) then
-                            -- start update procedure
-                            print ( "UPDATE" );
-                            -- TODO
-                            -- require ( "update" ).start ();
-                        end
+                    if ( topic == espNode.config.topic .. "/service/update" ) then 
+                        -- start update procedure
+                        print ( "UPDATE" );
+                        -- TODO
+                        -- require ( "update" ).start ();
                     else
                         M.appNode.message ( client, topic, payload );
                     end
@@ -94,7 +92,7 @@ local function wifiLoop ()
             end
         );
         
-        local result = M.client:connect( espNode.config.mqttBroker , 1883, 0, 
+        local result = M.client:connect( espNode.config.mqttBroker , 1883, 0, 0, -- broker, port, secure, autoreconnect
         
             function ( client )
             
@@ -105,7 +103,7 @@ local function wifiLoop ()
                 print ( "[MQTT} node=", espNode.config.topic );
                 
                 -- subscribe to update topic
-                local topic = espNode.config.topic;
+                local topic = espNode.config.topic .. "/service/update";
                 print ( "[MQTT] subscribe to topic=" .. topic );
                 client:subscribe ( topic, 2, -- ..., qos: receive only once -> we receiving the hello message from this node
                     function ( client )
@@ -175,13 +173,13 @@ function M.start ( app )
     end
     
     -- loop to wait up to connected to wifi
-    tmr.alarm ( TIMER_WIFI_LOOP, TIMER_WIFI_PERIOD * 1000, tmr.ALARM_AUTO, function () wifiLoop() end ) -- timer_id, interval_ms, mode
+    tmr.alarm ( TIMER_WIFI_LOOP, TIMER_WIFI_PERIOD * 1000, tmr.ALARM_AUTO, function () wifiLoop() end ); -- timer_id, interval_ms, mode
     tmr.alarm ( TIMER_VOLTAGE_LOOP, TIMER_VOLTAGE_PERIOD * 1000, tmr.ALARM_AUTO, -- timer_id, interval_ms, mode
         function () 
             print ( "[MQTT] send voltage" );
             M.client:publish ( espNode.config.topic .. "/value/voltage", createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
         end 
-    ) 
+    );
 
 end
   
