@@ -35,41 +35,61 @@ homeassistant:
         friendly_name: Spannungspegel TEST
         entity_picture: /local/images/nodemcu.jpg
 
+    sensor.dht11table_hello:
+        friendly_name: TEST Last Boot
+        entity_picture: /local/images/nodemcu.jpg
+
     sensor.dht11terrace_temperature:
-        friendly_name: Temperatur Garage
+        friendly_name: Temperatur
 ###        entity_picture: /local/images/DHT11.jpg
 
     sensor.dht11terrace_humidity:
-        friendly_name: Luftfeuchtigkeit Garage
+        friendly_name: Luftfeuchtigkeit
         entity_picture: /local/images/DHT11.jpg
 
     sensor.dht11terrace_voltage:
-        friendly_name: Spannungspegel Garage
+        friendly_name: Garage Spannungspegel
+        entity_picture: /local/images/nodemcu.jpg
+
+    sensor.dht11terrace_hello:
+        friendly_name: Garage Last Boot
         entity_picture: /local/images/nodemcu.jpg
 
     sensor.dht11lounge_temperature:
-        friendly_name: Temperatur Wohnzimmer
+        friendly_name: Temperatur
 ###        entity_picture: /local/images/DHT11.jpg
 
     sensor.dht11lounge_humidity:
-        friendly_name: Luftfeuchtigkeit Wohnzimmer
+        friendly_name: Luftfeuchtigkeit
         entity_picture: /local/images/DHT11.jpg
 
     sensor.dht11lounge_voltage:
-        friendly_name: Spannungspegel Wohnzimmer
+        friendly_name: Wohnzimmer Spannungspegel
+        entity_picture: /local/images/nodemcu.jpg
+
+    sensor.dht11lounge_hello:
+        friendly_name: Wohnzimmer Last Boot
         entity_picture: /local/images/nodemcu.jpg
 
     sensor.dht11roof_temperature:
-        friendly_name: Temperatur Galerie
+        friendly_name: Temperatur
 ###        entity_picture: /local/images/DHT11.jpg
 
     sensor.dht11roof_humidity:
-        friendly_name: Luftfeuchtigkeit Galerie
+        friendly_name: Luftfeuchtigkeit
         entity_picture: /local/images/DHT11.jpg
 
     sensor.dht11roof_voltage:
-        friendly_name: Spannungspegel Galerie
+        friendly_name: Galerie Spannungspegel
         entity_picture: /local/images/nodemcu.jpg
+        
+    sensor.dht11roof_hello:
+        friendly_name: Galerie Last Boot
+        entity_picture: /local/images/nodemcu.jpg
+
+    device_tracker.102andreasxperiawlan:
+        friendly_name: Andreas
+        entity_picture: /local/images/Glumanda_klein.jpg
         
     device_tracker.111ninaxperiawlan:
         friendly_name: Nina
@@ -120,14 +140,29 @@ homeassistant:
     light.rfhubfirst_lampstudypillar:
         friendly_name: Stehlampe am Drucker
         
-    sensor.rfhubfirst_timestamp:
-        friendly_name: RF Hub Version
+    sensor.rfhubfirst_hello:
+        friendly_name: RF Hub Last Boot
+        entity_picture: /local/images/nodemcu.jpg
         
-    sensor.rfhubfirst_version:
-        friendly_name: RF Hub Restart
+    sensor.rfhubfirst_voltage:
+        friendly_name: RF Hub Spannungspegel
+        entity_picture: /local/images/nodemcu.jpg
+        
+    weblink.home_assistant:
+        entity_picture: /local/images/home-assistant.jpg
+    
         
 # -------------------------------------------------------------------------------
+# weblinks
+
+weblink:
+  entities:
+    - name: Home Assistant
+      url: https://home-assistant.io        
+
+# -------------------------------------------------------------------------------
 # mqtt broker
+
 mqtt:
   broker: 192.168.2.117
   port: 1883
@@ -135,6 +170,13 @@ mqtt:
   keepalive: 120
   protocol: 3.1.1
 
+# -------------------------------------------------------------------------------
+# media player
+
+media_player:
+  - platform: braviatv
+    host: 192.168.2.104
+    
 # -------------------------------------------------------------------------------
 # octoprint:
   # host: 192.168.2.114
@@ -255,44 +297,21 @@ sensor:
       - type: last_boot
     
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/table/temperature
-    name: "DHT11@table_temperature"
-    qos: 0
-    unit_of_measurement: "°C"
-    value_template: '{{ value_json.value }}'
-
-  - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/table/humidity
-    name: "DHT11@table_humidity"
-    qos: 0
-    unit_of_measurement: "%"
-    value_template: '{{ value_json.value }}'
-
-  - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/table/voltage
-    name: "DHT11@table_voltage"
-    qos: 0
-    unit_of_measurement: "V"
-    value_template: '{{ value_json.value | multiply  ( 0.001 ) }}'
-    # unit_of_measurement: "mV"
-    # value_template: '{{ value_json.value }}'
-    
-  - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/terrace/temperature
+    state_topic: nodes@home/sensor/DHT11/terrace/value/temperature
     name: "DHT11@terrace_temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/terrace/humidity
+    state_topic: nodes@home/sensor/DHT11/terrace/value/humidity
     name: "DHT11@terrace_humidity"
     qos: 0
     unit_of_measurement: "%"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/terrace/voltage
+    state_topic: nodes@home/sensor/DHT11/terrace/value/voltage
     name: "DHT11@terrace_voltage"
     qos: 0
     unit_of_measurement: "V"
@@ -301,21 +320,27 @@ sensor:
     # value_template: '{{ value_json.value }}'
     
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/roof/temperature
+    state_topic: nodes@home/sensor/DHT11/terrace
+    name: "DHT11@terrace_hello"
+    qos: 0
+    value_template: '{{ as_timestamp ( now () ) | timestamp_custom ( "%d.%m.%Y %H:%M:%S", true ) }} - {{ value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/roof/value/temperature
     name: "DHT11@roof_temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/roof/humidity
+    state_topic: nodes@home/sensor/DHT11/roof/value/humidity
     name: "DHT11@roof_humidity"
     qos: 0
     unit_of_measurement: "%"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/roof/voltage
+    state_topic: nodes@home/sensor/DHT11/roof/value/voltage
     name: "DHT11@roof_voltage"
     qos: 0
     unit_of_measurement: "V"
@@ -324,21 +349,27 @@ sensor:
     # value_template: '{{ value_json.value }}'
     
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/lounge/temperature
+    state_topic: nodes@home/sensor/DHT11/roof
+    name: "DHT11@roof_hello"
+    qos: 0
+    value_template: '{{ as_timestamp ( now () ) | timestamp_custom ( "%d.%m.%Y %H:%M:%S", true ) }} - {{ value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/lounge/value/temperature
     name: "DHT11@lounge_temperature"
     qos: 0
     unit_of_measurement: "°C"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/lounge/humidity
+    state_topic: nodes@home/sensor/DHT11/lounge/value/humidity
     name: "DHT11@lounge_humidity"
     qos: 0
     unit_of_measurement: "%"
     value_template: '{{ value_json.value }}'
 
   - platform: mqtt
-    state_topic: nodes@home/sensor/DHT11/lounge/voltage
+    state_topic: nodes@home/sensor/DHT11/lounge/value/voltage
     name: "DHT11@lounge_voltage"
     qos: 0
     unit_of_measurement: "V"
@@ -346,6 +377,12 @@ sensor:
     # unit_of_measurement: "mV"
     # value_template: '{{ value_json.value }}'
     
+  - platform: mqtt
+    state_topic: nodes@home/sensor/DHT11/lounge
+    name: "DHT11@lounge_hello"
+    qos: 0
+    value_template: '{{ as_timestamp ( now () ) | timestamp_custom ( "%d.%m.%Y %H:%M:%S", true ) }} - {{ value }}'
+
   # - platform: cpuspeed
     # name: "CPU"
     
@@ -366,18 +403,32 @@ sensor:
       # - Current State
       # - Job Percentage
       
-  # version on the node
   - platform: mqtt
-    name: rfhub@first_version
     state_topic: nodes@home/switch/rfhub/first
-    value_template: '{{ value }}' ### TODO extract the third token Vn.nn
-      
+    name: "rfhub@first_hello"
+    qos: 0
+    value_template: '{{ as_timestamp ( now () ) | timestamp_custom ( "%d.%m.%Y %H:%M:%S", true ) }} - {{ value }}'
+
   - platform: mqtt
-    name: rfhub@first_timestamp
-    state_topic: nodes@home/switch/rfhub/first
-    # value_template: '{{ now () | timestamp_custom ( "%D.%M.%Y %H:%M:%S", true ) }}'
-    value_template: '{{ now () }}'
-      
+    state_topic: nodes@home/switch/rfhub/first/value/voltage
+    name: "rfhub@first_voltage"
+    qos: 0
+    unit_of_measurement: "V"
+    value_template: '{{ value_json.value | multiply  ( 0.001 ) }}'
+    
+  - platform: mqtt
+    state_topic: nodes@home/switch/test/nowhere
+    name: "test@nowhere_hello"
+    qos: 0
+    value_template: '{{ as_timestamp ( now () ) | timestamp_custom ( "%d.%m.%Y %H:%M:%S", true ) }} - {{ value }}'
+
+  - platform: mqtt
+    state_topic: nodes@home/switch/test/nowhere/value/voltage
+    name: "test@nowhere_voltage"
+    qos: 0
+    unit_of_measurement: "V"
+    value_template: '{{ value_json.value | multiply  ( 0.001 ) }}'
+    
 # -------------------------------------------------------------------------------
 # binary_sensor:
 
@@ -398,56 +449,63 @@ light:
     name: "rfhub@first_lampKitchenLongStrip"
     state_topic: "nodes@home/switch/rfhub/first/lampKitchenLongStrip/state"
     command_topic: "nodes@home/switch/rfhub/first/lampKitchenLongStrip"
-    optimistic: false
+    optimistic: true
     retain: false
     
   - platform: mqtt
     name: "rfhub@first_lampKitchenShortStrip"
     state_topic: "nodes@home/switch/rfhub/first/lampKitchenShortStrip/state"
     command_topic: "nodes@home/switch/rfhub/first/lampKitchenShortStrip"
-    optimistic: false
+    optimistic: true
     retain: false
     
   - platform: mqtt
     name: "rfhub@first_lampStudyPillar"
     state_topic: "nodes@home/switch/rfhub/first/lampStudyPillar/state"
     command_topic: "nodes@home/switch/rfhub/first/lampStudyPillar"
-    optimistic: false
+    optimistic: true
     retain: false
     
   - platform: mqtt
     name: "rfhub@first_lampLoungeWhiteBall"
     state_topic: "nodes@home/switch/rfhub/first/lampLoungeWhiteBall/state"
     command_topic: "nodes@home/switch/rfhub/first/lampLoungeWhiteBall"
-    optimistic: false
+    optimistic: true
     retain: false
     
   - platform: mqtt
     name: "rfhub@first_lampLoungeBlackBowl"
     state_topic: "nodes@home/switch/rfhub/first/lampLoungeBlackBowl/state"
     command_topic: "nodes@home/switch/rfhub/first/lampLoungeBlackBowl"
-    optimistic: false
+    optimistic: true
     retain: false
     
   - platform: mqtt
     name: "rfhub@first_lampLoungeReading"
     state_topic: "nodes@home/switch/rfhub/first/lampLoungeReading/state"
     command_topic: "nodes@home/switch/rfhub/first/lampLoungeReading"
-    optimistic: false
+    optimistic: true
     retain: false
     
   - platform: mqtt
     name: "rfhub@first_lamp1"
     state_topic: "nodes@home/switch/rfhub/first/lamp1/state"
     command_topic: "nodes@home/switch/rfhub/first/lamp1"
-    optimistic: false
+    optimistic: true
+    retain: false
+    
+  - platform: mqtt
+    name: "test@nowhere_noName3D"
+    state_topic: "nodes@home/switch/test/nowhere/noName3D/state"
+    command_topic: "nodes@home/switch/test/nowhere/noName3D"
+    optimistic: true
     retain: false
     
   - platform: mqtt
     name: "rfhub@first_LAMP"
     state_topic: "nodes@home/switch/rfhub/first/LAMP/state"
     command_topic: "nodes@home/switch/rfhub/first/LAMP"
-    optimistic: false
+    optimistic: true
     retain: false
     
 # -------------------------------------------------------------------------------
@@ -458,14 +516,22 @@ group:
         name: Home
         view: yes
         entities:
-            - device_tracker.andreas_xperia
+            # - device_tracker.andreas_xperia
             # - device_tracker.undine_xperia
-            # - device_tracker.102andreasxperiawlan
+            - device_tracker.102andreasxperiawlan
             - device_tracker.118undinexperiawlan
             - device_tracker.111ninaxperiawlan
             - device_tracker.112noraxperiawlan
+            - sensor.yr_symbol
+            - sun.sun
+            # - sensor.owm_condition
+            # - sensor.owm_forecast
+            - sensor.owm_temperature
+            - sensor.owm_humidity
+            - sensor.owm_pressure
             - group.default_view__temperatures
             - group.default_view__weather
+            # - group.default_view__scenarios
             
             
     default_view__temperatures:
@@ -482,10 +548,14 @@ group:
             - sensor.owm_condition
             - sensor.owm_forecast
             
+    # default_view__scenarios:
+        # name: Szenarien
+        # entities:
+            
     # ---------------------------------------------------------------------------
     weather :
         name: Wetter
-        view: yes
+        view: no
         entities:
             - sensor.yr_symbol
             - sun.sun
@@ -501,6 +571,7 @@ group:
         view: yes
         entities:
             - group.rooms__lounge
+            - media_player.sony_bravia_tv
             - group.rooms__kitchen
             - group.rooms__terrace
             - group.rooms__roof
@@ -515,7 +586,6 @@ group:
             - light.rfhubfirst_lampStudyPillar
             - sensor.dht11lounge_temperature
             - sensor.dht11lounge_humidity
-            - sensor.dht11lounge_voltage
             
     rooms__kitchen:
         name: Küche
@@ -528,14 +598,12 @@ group:
         entities:
             - sensor.dht11terrace_temperature
             - sensor.dht11terrace_humidity
-            - sensor.dht11terrace_voltage
             
     rooms__roof:
         name: Galerie
         entities:
             - sensor.dht11roof_temperature
             - sensor.dht11roof_humidity
-            - sensor.dht11roof_voltage
             
     rooms__test:
         name: Test
@@ -543,7 +611,6 @@ group:
             - switch.rfhubfirst_lamp1
             - sensor.dht11table_temperature
             - sensor.dht11table_humidity
-            - sensor.dht11table_voltage
             
     # ---------------------------------------------------------------------------
     system:
@@ -554,6 +621,7 @@ group:
             - group.system__dsl
             - group.system__server
             - group.system__nodes
+            - configurator.sony_bravia_tv
             
     system__dsl:
         name: DSL
@@ -565,6 +633,7 @@ group:
     system__server:
         name: Server (Raspberry Pi 3)
         entities:
+            # - weblink.home_assistant
             - sensor.CPU
             - sensor.cpu_use
             - sensor.ram_use
@@ -575,9 +644,31 @@ group:
     system__nodes:
         name: Nodes
         entities:
-            - sensor.rfhubfirst_version
-            - sensor.rfhubfirst_timestamp
+            - sensor.dht11lounge_hello
+            - sensor.dht11lounge_voltage
+            - sensor.dht11roof_hello
+            - sensor.dht11roof_voltage
+            - sensor.dht11terrace_hello
+            - sensor.dht11terrace_voltage
+            - sensor.rfhubfirst_hello
+            - sensor.rfhubfirst_voltage
+            # - sensor.dht11table_hello
+            # - sensor.dht11table_voltage
 
+    # ---------------------------------------------------------------------------
+    test:
+        name: Test
+        view: yes
+        entities:
+            - group.test__test
+            
+    test__test:
+        name: Der Schalter
+        entities:
+            - light.testnowhere_noName3D
+            - sensor.testnowhere_hello
+            - sensor.testnowhere_voltage
+    
     # ---------------------------------------------------------------------------
     octoprint:
         name: OctoPrint
