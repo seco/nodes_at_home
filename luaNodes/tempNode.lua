@@ -11,10 +11,12 @@ local moduleName = ...;
 local M = {};
 _G [moduleName] = M;
 
+require ( "espConfig" );
+
 -------------------------------------------------------------------------------
 --  Settings
 
-M.version = "V0.10 (tempNode)";
+M.version = "V0.10 (temp)";
 
 local TIME_BETWEEN_SENSOR_READINGS = 15 * 60;     -- sec
 
@@ -81,16 +83,21 @@ local function connect ( client, baseTopic )
             client:publish ( baseTopic .. "/value/humidity", createJsonValueMessage ( h, "%" ), 0, 1, -- qos, retain
                 function ( client )
                     -- wait a minute with closing connection
-                    print ( "[APP] initiate alarm for closing connection" );
-                    tmr.alarm ( 3, 60 * 1000, tmr.ALARM_SINGLE,  -- timer_id, interval_ms, mode
-                        function () 
-                            print ( "[APP] closing connection" );
-                            client:close ();
-                            print ( "[APP] going to deep sleep" );
-                            node.dsleep ( (TIME_BETWEEN_SENSOR_READINGS - 60) * 1000 * 1000 );
-                            -- node.dsleep ( (90 - 60) * 1000 * 1000 );
-                        end
-                    );
+                    if ( not espConfig.node.appCfg.useOfflineCallback ) then
+                        print ( "[APP] initiate alarm for closing connection" );
+                        tmr.alarm ( 3, 60 * 1000, tmr.ALARM_SINGLE,  -- timer_id, interval_ms, mode
+                            function () 
+                                print ( "[APP] closing connection" );
+                                client:close ();
+                                print ( "[APP] going to deep sleep" );
+                                node.dsleep ( (TIME_BETWEEN_SENSOR_READINGS - 60) * 1000 * 1000 );
+                                -- node.dsleep ( (90 - 60) * 1000 * 1000 );
+                            end
+                        );
+                    else
+                        print ( "[APP] closing connection using offline handler" );
+                        client:close ();
+                    end
                 end
             );
         end
@@ -122,10 +129,11 @@ end
 -- main
 
 print ( "[MODULE] loaded", moduleName )
-print ( "heap=", node.heap () );
 
 M.connect = connect;
--- M.offline = offline;
+if ( espConfig.node.appCfg.useOfflineCallback ) then
+    M.offline = offline;
+end
 -- M.message = message;
 
 return M;

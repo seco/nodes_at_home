@@ -19,7 +19,6 @@ package.loaded ["credential"] = nil;
 collectgarbage ();
 
 require ( "wifi" );
-require ( "mqttNode" );
 
 --------------------------------------------------------------------
 -- vars
@@ -69,10 +68,16 @@ local function startup()
                 print ( "[WIFI] fix ip=" .. wificfg.ip );
                 wifi.sta.setip ( wificfg );
             end
-             -- start app
-            local app = require ( espConfig.node.app );
-            mqttNode.start ( app );
-            -- app.start ();
+            
+            if ( file.exists ( "update.url" ) ) then
+                print ( "[STARTUP] update file found" );
+                require ( "update" ).update ();
+            else
+                print ( "[STARTUP] start app=", espConfig.node.app );
+                local app = require ( espConfig.node.app );
+                require ( "mqttNode" ).start ( app );
+            end
+            
         end 
 
     );

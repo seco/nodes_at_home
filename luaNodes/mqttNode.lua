@@ -72,10 +72,22 @@ local function wifiLoop ()
                 if ( payload ) then
                     -- check for update
                     if ( topic == espConfig.node.topic .. "/service/update" ) then 
-                        -- start update procedure
-                        print ( "UPDATE" );
-                        -- TODO
-                        -- require ( "update" ).start ();
+                        -- and there was no update with this url before
+                        local update = true;
+                        if ( file.exists ( "old_update.url" ) ) then
+                            if ( file.open ( "old_update.url" ) ) then
+                                url = file.readline ();
+                                file.close ();
+                                if ( url and url == payload ) then
+                                    print ( "[UPDATE] already updated with", payload );
+                                    update = false;
+                                 end
+                            end
+                        end
+                        if ( update ) then
+                            -- start update procedure
+                            require ( "update" ).start ( payload );
+                        end
                     else
                         M.appNode.message ( client, topic, payload );
                     end
