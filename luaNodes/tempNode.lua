@@ -12,85 +12,40 @@ local M = {};
 _G [moduleName] = M;
 
 require ( "espConfig" );
+require ( "util" );
 
 -------------------------------------------------------------------------------
 --  Settings
 
-M.version = "V0.10 (temp)";
-
 local TIME_BETWEEN_SENSOR_READINGS = 15 * 60;     -- sec
-
--- DHT11
-local DHT_PIN = 4; -- nodemcu D4, GIO2
 
 ----------------------------------------------------------------------------------------
 -- private
 
--- DHT11 sensor logic
-
-function getSensorData ()
-
-    local dht = require ( "dht" );
-    
-    local status, temperature, humidity, temp_decimial, humi_decimial = dht.read ( DHT_PIN );
-    
-    if( status == dht.OK ) then
-
-        print ( "[DHT] Temperature: "..temperature.." C" );
-        print ( "[DHT] Humidity: "..humidity.."%" );
-        
-    elseif( status == dht.ERROR_CHECKSUM ) then
-    
-        print ( "[DHT] Checksum error" );
-        temperature = -1;
-        humidity = 0;
-        
-    elseif( status == dht.ERROR_TIMEOUT ) then
-    
-        print ( "[DHT] Time out" );
-        temperature = -2;
-        humidity = 0;
-        
-    end
-    
-    -- Release module
-    dht = nil;
-    package.loaded [ "dht" ] = nil;
-    
-    return temperature, humidity;
-    
-end
-
-local function createJsonValueMessage ( value, unit )
-
-    return [[{"value":]] .. value .. [[, "unit":"]] .. unit .. [["}]];
-    
-end
-
 -------------------------------------------------------------------------------
 -- mqtt callbacks
 
-local function connect ( client, baseTopic )
+function M.connect ( client, baseTopic )
 
     print ( "[APP] connect" );
     
-    local t, h = getSensorData();
+    local t, h = util.getSensorData ( espConfig.node.appCfg.dhtPin );
 
     print ( "[APP] publish temperature t=", t );
-    client:publish ( baseTopic .. "/value/temperature", createJsonValueMessage ( t, "C" ), 0, 1, -- qos, retain
+    client:publish ( baseTopic .. "/value/temperature", util.createJsonValueMessage ( t, "C" ), 0, 1, -- qos, retain
         function ( client )
-            print ( "[APP] publish temperature h=", h );
-            client:publish ( baseTopic .. "/value/humidity", createJsonValueMessage ( h, "%" ), 0, 1, -- qos, retain
+            print ( "[APP] publish humidity h=", h );
+            client:publish ( baseTopic .. "/value/humidity", util.createJsonValueMessage ( h, "%" ), 0, 1, -- qos, retain
                 function ( client )
                     -- wait a minute with closing connection
                     if ( not espConfig.node.appCfg.useOfflineCallback ) then
-                        print ( "[APP] initiate alarm for closing connection" );
-                        tmr.alarm ( 3, 60 * 1000, tmr.ALARM_SINGLE,  -- timer_id, interval_ms, mode
+                        print ( "[APP] initiate alarm for closing connection in " ..  espConfig.node.timer.deepSleepDelay/1000 .. " seconds" );
+                        tmr.alarm ( espConfig.node.timer.deepSleep, espConfig.node.timer.deepSleepDelay, tmr.ALARM_SINGLE,  -- timer_id, interval_ms, mode
                             function () 
                                 print ( "[APP] closing connection" );
                                 client:close ();
-                                print ( "[APP] going to deep sleep" );
-                                node.dsleep ( (TIME_BETWEEN_SENSOR_READINGS - 60) * 1000 * 1000 );
+                                print ( "[APP] Going to deep sleep for ".. espConfig.node.appCfg.timeBetweenSensorReadings/1000 .." seconds" );
+                                node.dsleep ( (espConfig.node.appCfg.timeBetweenSensorReadings - espConfig.node.timer.deepSleepDelay) * 1000 ); -- us
                                 -- node.dsleep ( (90 - 60) * 1000 * 1000 );
                             end
                         );
@@ -130,7 +85,6 @@ end
 
 print ( "[MODULE] loaded", moduleName )
 
-M.connect = connect;
 if ( espConfig.node.appCfg.useOfflineCallback ) then
     M.offline = offline;
 end

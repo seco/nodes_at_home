@@ -1,3 +1,6 @@
 WLAN.h
 credential.lua
 secrets.yaml
+luaNodes/.buildpath
+luaNodes/.project
+luaNodes/.settings/org.eclipse.ldt.prefs

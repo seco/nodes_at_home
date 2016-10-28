@@ -23,11 +23,11 @@ require ( "util" );
 M.appNode = nil;    -- application callbacks
 M.client = nil;     -- mqtt client
 
-local TIMER_WIFI_LOOP = 1;
-local TIMER_WIFI_PERIOD = 1; -- sec
+local wifiLoopTimer = espConfig.node.timer.wifiLoop;
+local wifiLoopPeriod = espConfig.node.timer.wifiLoopPeriod;
 
-local TIMER_VOLTAGE_LOOP = 2;
-local TIMER_VOLTAGE_PERIOD = 15 * 60;
+local periodicTimmer = espConfig.node.timer.periodic;
+local periodicPeriod = espConfig.node.timer.periodicPeriod;
 
 ----------------------------------------------------------------------------------------
 -- private
@@ -73,20 +73,29 @@ local function wifiLoop ()
                     -- check for update
                     if ( topic == espConfig.node.topic .. "/service/update" ) then 
                         -- and there was no update with this url before
-                        local update = true;
+                        local forceUpdate = true;
                         if ( file.exists ( "old_update.url" ) ) then
                             if ( file.open ( "old_update.url" ) ) then
                                 url = file.readline ();
                                 file.close ();
                                 if ( url and url == payload ) then
                                     print ( "[UPDATE] already updated with", payload );
-                                    update = false;
+                                    forceUpdate = false;
                                  end
                             end
                         end
-                        if ( update ) then
+                        if ( forceUpdate ) then
                             -- start update procedure
-                            require ( "update" ).start ( payload );
+                            print ( "[UPDATE] start heap:", node.heap () )
+                            if ( file.open ( "update.url", "w" ) ) then
+                                local success = file.write ( payload );
+                                print ( "[UPDATE] update url write success=", success );
+                                file.close ();
+                                if ( success ) then
+                                    print ( "[UPDATE] restart for second step" );
+                                    node.restart ();
+                                end
+                            end
                         end
                     else
                         M.appNode.message ( client, topic, payload );
@@ -101,7 +110,7 @@ local function wifiLoop ()
                 local restartMqtt = M.appNode.offline ( client );
                 if ( restartMqtt ) then
                     print ( "[MQTT] restart connection" );
-                    tmr.alarm ( TIMER_WIFI_LOOP, TIMER_WIFI_PERIOD * 1000, tmr.ALARM_AUTO, function () wifiLoop() end ) -- timer_id, interval_ms, mode
+                    tmr.alarm ( wifiLoopTimer, wifiLoopPeriod, tmr.ALARM_AUTO, function () wifiLoop() end ) -- timer_id, interval_ms, mode
                 end
             end
         );
@@ -111,7 +120,7 @@ local function wifiLoop ()
             function ( client )
             
                 -- Stop the loop only if connected
-                tmr.stop ( TIMER_WIFI_LOOP );
+                tmr.stop ( wifiLoopTimer );
 
                 print ( "[MQTT] connected to MQTT Broker" )
                 print ( "[MQTT} node=", espConfig.node.topic );
@@ -126,8 +135,10 @@ local function wifiLoop ()
                         print ( "[MQTT] subscribe to topic=" .. topic );
                         client:subscribe ( topic, 0, -- ..., qos
                             function ( client )
-                                print ( "[MQTT] send <" .. M.appNode.version .. "> to topic=" .. espConfig.node.topic );
-                                client:publish ( espConfig.node.topic, M.appNode.version, 0, 1, -- ..., qos, retain
+                                -- local version = M.appNode.version;
+                                local version = espConfig.node.version;
+                                print ( "[MQTT] send <" .. version .. "> to topic=" .. espConfig.node.topic );
+                                client:publish ( espConfig.node.topic, version, 0, 1, -- ..., qos, retain
                                     function ( client )
                                         client:publish ( espConfig.node.topic .. "/value/voltage", util.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1, -- qos, retain
                                             function ( client )
@@ -163,6 +174,7 @@ local function initAppNode ( app )
     if ( app.connect == nil ) then app.connect = noop; end
     if ( app.offline == nil ) then app.offline = noop; end
     if ( app.message == nil ) then app.message = noop; end
+    if ( app.periodic == nil ) then app.periodic = noop; end
     
     M.appNode = app;
     
@@ -173,6 +185,12 @@ end
 
 function M.start ( app )
 
+    print ( "start app heap=", node.heap () );
+    startup = nil;
+    package.loaded ["startup"] = nil;
+    collectgarbage ();
+    print ( "startup cleaned heap=", node.heap () );
+
     if ( app ) then
         initAppNode ( app );
     else
@@ -181,11 +199,12 @@ function M.start ( app )
     end
     
     -- loop to wait up to connected to wifi
-    tmr.alarm ( TIMER_WIFI_LOOP, TIMER_WIFI_PERIOD * 1000, tmr.ALARM_AUTO, function () wifiLoop() end ); -- timer_id, interval_ms, mode
-    tmr.alarm ( TIMER_VOLTAGE_LOOP, TIMER_VOLTAGE_PERIOD * 1000, tmr.ALARM_AUTO, -- timer_id, interval_ms, mode
+    tmr.alarm ( wifiLoopTimer, wifiLoopPeriod, tmr.ALARM_AUTO, function () wifiLoop() end ); -- timer_id, interval_ms, mode
+    tmr.alarm ( periodicTimmer, periodicPeriod, tmr.ALARM_AUTO, -- timer_id, interval_ms, mode
         function () 
             print ( "[MQTT] send voltage" );
             M.client:publish ( espConfig.node.topic .. "/value/voltage", util.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
+            M.appNode.periodic ( M.client, espConfig.node.topic );
         end 
     );
 

@@ -23,10 +23,11 @@ require ( "wifi" );
 --------------------------------------------------------------------
 -- vars
 
-local ABORT_WAIT_TIME = 100;
-local STARTUP_WAIT_TIME = 5 * 1000;
+local startupTimer = espConfig.node.timer.startup;
 
-local STARTUP_TIMER = 0;
+local startupDelay1 = espConfig.node.timer.startupDelay1;
+local startupDelay2 = espConfig.node.timer.startupDelay2;
+
 
 --- WIFI ---
 -- wifi.PHYMODE_B 802.11b, More range, Low Transfer rate, More current draw
@@ -44,14 +45,14 @@ local function startup()
     -- if <CR> is pressed, abort startup
     uart.on ( "data", "\r", 
         function ()
-            tmr.unregister ( STARTUP_TIMER );   -- disable the start up timer
+            tmr.unregister ( startupTimer );   -- disable the start up timer
             uart.on ( "data" );                 -- stop capturing the uart
             print ( "[STARTUP] aborted" );
         end, 
         0 );
 
     -- startup timer to execute startup function in 5 seconds
-    tmr.alarm ( STARTUP_TIMER, STARTUP_WAIT_TIME, tmr.ALARM_SINGLE, 
+    tmr.alarm ( startupTimer, startupDelay2, tmr.ALARM_SINGLE, 
     
         function () 
             -- stop capturing the uart
@@ -98,7 +99,7 @@ if ( adc.force_init_mode ( adc.INIT_VDD33 ) ) then
 end
 
 print ( "[STARTUP] waiting for application start" );
-tmr.alarm ( STARTUP_TIMER, ABORT_WAIT_TIME, tmr.ALARM_SINGLE, startup )
+tmr.alarm ( startupTimer, startupDelay1, tmr.ALARM_SINGLE, startup )
 
 return M;
 

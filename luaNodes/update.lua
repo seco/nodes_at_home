@@ -35,19 +35,39 @@ local updateListFile = "update.list";
 local updateList = {};
 local updateListIndex = 1;
 local url;
-
-local noHeaders = nil;
+local host;
+local port;
+local path;
 
 local TIMER_WIFI_LOOP = 1;
 local TIMER_WIFI_PERIOD = 1; -- sec
 
 local OLD_PREFIX = "old_";
-local OTA_OREFIX = "ota_";
+local OTA_PREFIX = "ota_";
 local LUA_POSTFIX = ".lua";
 local LC_POSTFIX = ".lc";
 
 ----------------------------------------------------------------------------------------
 -- private
+
+local function splitUrl ( url )
+
+    -- http://<host>:<port>/<path>
+    local urlSchemaStart = url:find ( "http://" );
+    local urlHostStart = urlSchemaStart and 8 or 1;
+    local urlPathStart = url:find ( "/", urlHostStart );
+    local urlPortStart = url:sub ( urlHostStart, urlPathStart - 1 ):find ( ":" );
+    if ( urlPortStart ) then
+        urlPortStart = urlPortStart + urlHostStart;
+    end 
+    
+    local urlPort = urlPortStart and url:sub ( urlPortStart, urlPathStart - 1 ) or 80;
+    local urlHost = url:sub ( urlHostStart, urlPortStart and urlPortStart - 2 or urlPathStart - 1 );
+    local urlPath = url:sub ( urlPathStart );
+    
+    return urlHost, urlPort, urlPath;
+    
+end
 
 local function wifiLoop ()
 
@@ -60,7 +80,7 @@ local function wifiLoop ()
             url = file.readline ();
             file.close ();
             print ( "[UPDATE] url=", url );
-            http.get ( url .. "/" .. updateListFile, noHeaders,
+            http.get ( url .. "/" .. updateListFile, nil, -- noheaders
                 function ( statusCode, body )
                     print ( "[UPDATE] status=", statusCode );
                     if ( statusCode == 200 ) then
@@ -73,7 +93,7 @@ local function wifiLoop ()
                                     print ( "[UPDATE] open file ", updateListFile );
                                     local line = file.readline ();
                                     while ( line ) do
-                                        line, cnt = line:gsub ( "[\n\r]+", "" );
+                                        line = line:gsub ( "[\n\r]+", "" );
                                         if ( line ~= "" ) then
                                             table.insert ( updateList, line );
                                         end
@@ -81,10 +101,13 @@ local function wifiLoop ()
                                     end
                                 end
                                 file.close ();
+                                host, port, path = splitUrl ( url );
                                 -- start task for update
                                 updateListIndex = 1;
+                                body = nil;
+                                collectgarbage ();
                                 print ( "[UPDATE] start update task chain" );
-                                node.task.post ( function ( priority ) updateFile ( priority ) end ); -- updates only the next file
+                                node.task.post ( function () updateFile () end ); -- updates only the next file
                             end
                         end
                     end
@@ -98,55 +121,47 @@ local function wifiLoop ()
 
 end
 
-function updateFile ( priority )
+function updateFile ()
 
     local fileName = updateList [updateListIndex];
-    local fileUrl = url .. "/" .. fileName .. LUA_POSTFIX;
+    local fileUrl = path .. "/" .. fileName .. LUA_POSTFIX;
     print ( "[UPDATE] i=", updateListIndex, "fileName=", fileName, "url=", fileUrl );
 
-    http.get ( fileUrl, noHeaders,
-        function ( statusCode, body )
-            print ( "[UPDATE] status=", statusCode, "fileUrl=", fileUrl );
-            if ( statusCode == 200 ) then
-                local f = OTA_OREFIX .. fileName .. LUA_POSTFIX;
-                print ( "[UPDATE] write f=", f );
-                if ( file.open ( f, "w" ) ) then
-                    local success = file.write ( body );
-                    print ( "[UPDATE] file write success=", success );
-                    file.close ();
-                    if ( success ) then
-                        if ( updateListIndex < #updateList ) then
-                            updateListIndex = updateListIndex + 1;
-                            print ( "[UPDATE] updating no=", updateListIndex );
-                            node.task.post ( 
-                                function ( priority ) 
-                                    updateFile ( priority ); -- updates only the next file
-                                end 
-                            );
-                         else
-                            node.task.post ( 
-                                function ( priority ) 
-                                    compileAndRename ( priority ); 
-                                    node.restart (); 
-                                end 
-                            );
-                         end
-                    else
-                        print ( "[UPDATE] ERROR downloading", fileName );
-                    end
-                end
+    require ( "httpDL" );
+        
+    httpDL.download ( host, port, fileUrl, OTA_PREFIX .. fileName .. LUA_POSTFIX,
+        function ( rc )
+            if ( rc == "ok" ) then
+                if ( updateListIndex < #updateList ) then
+                    updateListIndex = updateListIndex + 1;
+                    print ( "[UPDATE] updating no=", updateListIndex );
+                    node.task.post ( 
+                        function () 
+                            updateFile (); -- updates only the next file
+                        end 
+                    );
+                 else
+                    node.task.post ( 
+                        function () 
+                            compileAndRename (); 
+                            node.restart (); 
+                        end 
+                    );
+                 end
             end
         end
     );
-
+    
 end
 
-function compileAndRename ( priority )
+function compileAndRename ()
 
-    for i, fileName in ipairs ( updateList ) do
-        print ( "[UPDATE] compile", fileName );
-        node.compile ( OTA_OREFIX .. fileName .. LUA_POSTFIX );
-    end
+    print ( "compileAndRename: heap=", node.heap () );
+
+--    for i, fileName in ipairs ( updateList ) do
+--        print ( "[UPDATE] compile", fileName );
+--        node.compile ( OTA_PREFIX .. fileName .. LUA_POSTFIX );
+--    end
     
     for i, fileName in ipairs ( updateList ) do
         -- remove old old file
@@ -156,10 +171,10 @@ function compileAndRename ( priority )
         print ( "[UPDATE] rename", fileName );
         local luaFileName = fileName .. LUA_POSTFIX;
         local oldLuaFileName = OLD_PREFIX .. luaFileName;
-        local otaLuaFileName = OTA_OREFIX .. luaFileName;
+        local otaLuaFileName = OTA_PREFIX .. luaFileName;
         local lcFileName = fileName .. LC_POSTFIX;
         local oldLcFileName = OLD_PREFIX .. lcFileName;
-        local otaLcFileName = OTA_OREFIX .. lcFileName;
+        local otaLcFileName = OTA_PREFIX .. lcFileName;
         
         -- TODO file history, may be with dirs
 
@@ -170,20 +185,26 @@ function compileAndRename ( priority )
             file.remove ( oldLcFileName );
         end
 
-        if ( file.exists ( luaFileName ) and not file.rename ( luaFileName, oldLuaFileName  ) ) then
-            print ( "[UPDATE] ERROR renaming", luaFileName );
-            return; 
+--        if ( file.exists ( luaFileName ) and not file.rename ( luaFileName, oldLuaFileName  ) ) then
+--            print ( "[UPDATE] ERROR renaming", luaFileName );
+--            return; 
+--        end
+        if ( file.exists ( luaFileName ) ) then
+            file.remove ( luaFileName );
         end
-        if ( file.exists ( lcFileName ) and not file.rename ( lcFileName, oldLcFileName  ) ) then
-            print ( "[UPDATE] ERROR renaming", lcFileName );
-            return; 
+--        if ( file.exists ( lcFileName ) and not file.rename ( lcFileName, oldLcFileName  ) ) then
+--            print ( "[UPDATE] ERROR renaming", lcFileName );
+--            return; 
+--        end
+        if ( file.exists ( lcFileName ) ) then
+            file.remove ( lcFileName );
         end
         
         if ( not file.rename ( otaLuaFileName, luaFileName  ) ) then
             print ( "[UPDATE] ERROR renaming", otaLuaFileName );
             return; 
         end
-        if ( not file.rename ( otaLcFileName, lcFileName  ) ) then
+        if ( file.exists ( otaLcFileName ) and not file.rename ( otaLcFileName, lcFileName  ) ) then
             print ( "[UPDATE] ERROR renaming", otaLcFileName );
             return; 
         end
@@ -208,29 +229,10 @@ function compileAndRename ( priority )
         return; 
     end
     
-    -- node.restart ();
-    
 end
 
 --------------------------------------------------------------------
 -- public
-
-
-function M.start ( url )
-
-    print ( "[UPDATE] start url=", url );
-
-    if ( file.open ( updateUrlFile, "w" ) ) then
-        local success = file.write ( url );
-        print ( "[UPDATE] update url write success=", success );
-        file.close ();
-        if ( success ) then
-            print ( "[UPDATE] restart for second step" );
-            node.restart ();
-        end
-    end
-
-end
 
 function M.update ( url )
 

@@ -17,11 +17,20 @@ _G [moduleName] = M;
 ----------------------------------------------------------------------------------------
 -- private
 
+--------------------------------------------------------------------
+-- public
+
+function M.createJsonValueMessage ( value, unit )
+
+    return [[{"value":]] .. value .. [[, "unit":"]] .. unit .. [["}]];
+    
+end
+
 -- from: http://lua-users.org/wiki/SplitJoin
-local function split ( str, pat )
+function M.split ( str, pattern )
 
     local t = {};  -- NOTE: use {n = 0} in Lua-5.0
-    local fpat = "(.-)" .. pat;
+    local fpat = "(.-)" .. pattern;
     local last_end = 1;
     local s, e, cap = str:find ( fpat, last_end );
     while s do
@@ -40,22 +49,46 @@ local function split ( str, pat )
    
 end
 
---------------------------------------------------------------------
--- public
-
-function M.createJsonValueMessage ( value, unit )
-
-    return [[{"value":]] .. value .. [[, "unit":"]] .. unit .. [["}]];
-    
-end
-
 function M.splitTopic ( str )
 
    return split ( str, '[\\/]+' );
    
 end
 
+function M.getSensorData ( pin )
 
+    print ( "[DHT] pin=", pin );
+
+    local dht = require ( "dht" );
+    
+    local status, temperature, humidity, temp_decimial, humi_decimial = dht.read ( pin );
+    
+    if( status == dht.OK ) then
+
+        print ( "[DHT] Temperature: "..temperature.." C" );
+        print ( "[DHT] Humidity: "..humidity.."%" );
+        
+    elseif( status == dht.ERROR_CHECKSUM ) then
+    
+        print ( "[DHT] Checksum error" );
+        temperature = -1;
+        humidity = 0;
+        
+    elseif( status == dht.ERROR_TIMEOUT ) then
+    
+        print ( "[DHT] Time out" );
+        temperature = -2;
+        humidity = 0;
+        
+    end
+    
+    -- Release module
+    dht = nil;
+    package.loaded [ "dht" ] = nil;
+    
+    return temperature, humidity;
+    
+end
 
 -------------------------------------------------------------------------------
 -- main

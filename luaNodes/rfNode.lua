@@ -12,19 +12,16 @@ local M = {};
 _G [moduleName] = M;
 
 require ( "rfCode" );
-require ( "mqttNode" );
 require ( "util" );
 
 -------------------------------------------------------------------------------
 --  Settings
 
-M.version = "V0.10 (rfNode)";
-
 ----------------------------------------------------------------------------------------
 -- private
 -- mqtt callbacks
 
-local function offline ( client )
+function M.offline ( client )
 
     print ( "[APP] offline" );
     
@@ -32,7 +29,7 @@ local function offline ( client )
     
 end
 
-local function message ( client, topic, payload )
+function M.message ( client, topic, payload )
 
     print ( "[APP] message: topic=", topic, " payload=", payload );
     local topicParts = util.splitTopic ( topic );
@@ -49,10 +46,6 @@ end
 -- main
 
 print ( "[MODULE] loaded", moduleName )
-
--- M.connect = connect;
-M.offline = offline;
-M.message = message;
 
 return M;
 
