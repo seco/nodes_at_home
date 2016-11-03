@@ -77,42 +77,36 @@ local function wifiLoop ()
         tmr.stop ( TIMER_WIFI_LOOP );
 
         if ( file.open ( updateUrlFile ) ) then
+        
             url = file.readline ();
             file.close ();
-            print ( "[UPDATE] url=", url );
-            http.get ( url .. "/" .. updateListFile, nil, -- noheaders
-                function ( statusCode, body )
-                    print ( "[UPDATE] status=", statusCode );
-                    if ( statusCode == 200 ) then
-                        if ( file.open ( updateListFile, "w" ) ) then
-                            local success = file.write ( body );
-                            print ( "[UPDATE] update list write success=", success );
-                            file.close ();
-                            if ( success ) then
-                                if ( file.open ( updateListFile ) ) then
-                                    print ( "[UPDATE] open file ", updateListFile );
-                                    local line = file.readline ();
-                                    while ( line ) do
-                                        line = line:gsub ( "[\n\r]+", "" );
-                                        if ( line ~= "" ) then
-                                            table.insert ( updateList, line );
-                                        end
-                                        line = file.readline ();
-                                    end
-                                end
-                                file.close ();
-                                host, port, path = splitUrl ( url );
-                                -- start task for update
-                                updateListIndex = 1;
-                                body = nil;
-                                collectgarbage ();
-                                print ( "[UPDATE] start update task chain" );
-                                node.task.post ( function () updateFile () end ); -- updates only the next file
+            host, port, path = splitUrl ( url );
+            print ( "[UPDATE] url=", url, "host=", host, "port=", port, "path=", path );
+            
+            require ( "httpDL" );
+            
+            httpDL.download ( host, port, path .. "/" .. updateListFile, updateListFile,
+                function ()
+                    if ( file.open ( updateListFile ) ) then
+                        print ( "[UPDATE] open file ", updateListFile );
+                        local line = file.readline ();
+                        while ( line ) do
+                            line = line:gsub ( "[\n\r]+", "" );
+                            if ( line ~= "" ) then
+                                table.insert ( updateList, line );
                             end
+                            line = file.readline ();
                         end
                     end
+                    file.close ();
+                    -- start task for update
+                    updateListIndex = 1;
+                    collectgarbage ();
+                    print ( "[UPDATE] start update task chain" );
+                    node.task.post ( function () updateFile () end ); -- updates only the next file
                 end
             );
+            
         end
 
     else
@@ -156,49 +150,36 @@ end
 
 function compileAndRename ()
 
-    print ( "compileAndRename: heap=", node.heap () );
+    print ( "[UPDATE] compileAndRename: heap=", node.heap () );
+    
+    -- TODO activate compile
 
+--    collectgarbage ();
+--
 --    for i, fileName in ipairs ( updateList ) do
---        print ( "[UPDATE] compile", fileName );
+--        print ( "[UPDATE] compile", fileName, "heap=", node.heap () );
 --        node.compile ( OTA_PREFIX .. fileName .. LUA_POSTFIX );
+--        print ( "[UPDATE] after compile heap=", node.heap () );
+--        collectgarbage ();
 --    end
     
     for i, fileName in ipairs ( updateList ) do
-        -- remove old old file
-        -- remove old ".lc" file
-        -- rename "ota_" ".lua" file
-        -- rename "ota_" ".lc" file
+
         print ( "[UPDATE] rename", fileName );
+        
         local luaFileName = fileName .. LUA_POSTFIX;
         local oldLuaFileName = OLD_PREFIX .. luaFileName;
         local otaLuaFileName = OTA_PREFIX .. luaFileName;
         local lcFileName = fileName .. LC_POSTFIX;
         local oldLcFileName = OLD_PREFIX .. lcFileName;
         local otaLcFileName = OTA_PREFIX .. lcFileName;
-        
-        -- TODO file history, may be with dirs
 
-        if ( file.exists ( oldLuaFileName ) ) then
-            file.remove ( oldLuaFileName );
-        end
-        if ( file.exists ( oldLcFileName ) ) then
-            file.remove ( oldLcFileName );
-        end
-
---        if ( file.exists ( luaFileName ) and not file.rename ( luaFileName, oldLuaFileName  ) ) then
---            print ( "[UPDATE] ERROR renaming", luaFileName );
---            return; 
---        end
-        if ( file.exists ( luaFileName ) ) then
-            file.remove ( luaFileName );
-        end
---        if ( file.exists ( lcFileName ) and not file.rename ( lcFileName, oldLcFileName  ) ) then
---            print ( "[UPDATE] ERROR renaming", lcFileName );
---            return; 
---        end
-        if ( file.exists ( lcFileName ) ) then
-            file.remove ( lcFileName );
-        end
+        -- TODO robuster machen!!!
+                
+        file.remove ( oldLuaFileName );
+        file.remove ( oldLcFileName );
+        file.remove ( luaFileName );
+        file.remove ( lcFileName );
         
         if ( not file.rename ( otaLuaFileName, luaFileName  ) ) then
             print ( "[UPDATE] ERROR renaming", otaLuaFileName );
@@ -213,12 +194,8 @@ function compileAndRename ()
     
     print ( "[UPDATE] restarting" );
     
-    if ( file.exists ( OLD_PREFIX .. updateUrlFile ) ) then
-        file.remove ( OLD_PREFIX .. updateUrlFile );
-    end
-    if ( file.exists ( OLD_PREFIX .. updateListFile ) ) then
-        file.remove ( OLD_PREFIX .. updateListFile );
-    end
+    file.remove ( OLD_PREFIX .. updateUrlFile );
+    file.remove ( OLD_PREFIX .. updateListFile );
 
     if ( not file.rename ( updateUrlFile, OLD_PREFIX .. updateUrlFile  ) ) then
         print ( "[UPDATE] ERROR renaming", updateUrlFile );

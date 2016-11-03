@@ -14,22 +14,18 @@ _G [moduleName] = M;
 --------------------------------------------------------------------
 -- vars
 
-local VERSION = "V0.20dev_rc4"
+local VERSION = "V0.20dev_rc11"
 
 local PROD_MODE = "prod";
 local PROD_GATEWAY = "192.168.2.1";
 local PROD_NETMASK = "255.255.255.0";
 local PROD_MQTT_BROKER = "192.168.2.117";
 
-local APP_RF_NODE = "rfNode";
-local APP_TEMP_NODE = "tempNode";
-local APP_GARAGE_NODE = "garageNode";
-
 -- key is node.chipid ()
 local NODE_CONFIG_TAB = {
 
     [1461824] = { 
-                    app = APP_RF_NODE,
+                    app = "rfNode",
                     mode = PROD_MODE,
                     class = "switch", type = "rfhub", location = "first",  
                     wifi = { ip = "192.168.2.20", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
@@ -55,7 +51,7 @@ local NODE_CONFIG_TAB = {
                 },
 
     [1495931] = { 
-                    app = APP_TEMP_NODE,
+                    app = "tempNode",
                     mode = PROD_MODE,
                     class = "sensor", type = "DHT11", location = "lounge",  
                     wifi = { ip = "192.168.2.21", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
@@ -79,7 +75,7 @@ local NODE_CONFIG_TAB = {
                 },
 
     [1829768] = { 
-                    app = APP_TEMP_NODE,
+                    app = "tempNode",
                     mode = PROD_MODE,
                     class = "sensor", type = "DHT11", location = "roof",  
                     wifi = { ip = "192.168.2.22", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
@@ -103,7 +99,7 @@ local NODE_CONFIG_TAB = {
                 },
 
     [1495743] = { 
-                    app = APP_TEMP_NODE,
+                    app = "tempNode",
                     mode = PROD_MODE,
                     class = "sensor", type = "DHT11", location = "terrace",  
                     wifi = { ip = "192.168.2.23", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
@@ -126,9 +122,8 @@ local NODE_CONFIG_TAB = {
                     },
                 },
                 
-    -- test
     [8391351] = {
-                    app = APP_GARAGE_NODE,
+                    app = "garageNode",
                     mode = PROD_MODE,
                     class = "cover", type = "relay", location = "garage",  
                     wifi = { ip = "192.168.2.25", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
@@ -155,6 +150,61 @@ local NODE_CONFIG_TAB = {
                         statePeriod = 1000,
                     },
                 },
+
+    [485535] = {
+                    app = "sonoffNode",
+--                    mode = PROD_MODE,
+                    mode = "vaio",
+                    class = "switch", type = "sonoff", location = "backyard",  
+--                    wifi = { ip = "192.168.2.26", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
+--                    mqttBroker = PROD_MQTT_BROKER,
+                    mqttBroker = "192.168.137.1",
+                    appCfg = {
+                        relayPin = 6;
+                        ledPin = 7;
+                        buttonPin = 3;
+                        extraPin = 5;
+                    },
+                    timer = {
+                        startup = 0,
+                        startupDelay1 = 2 * 1000,
+                        startupDelay2 = 5 * 1000,
+                        wifiLoop = 1,
+                        wifiLoopPeriod = 1 * 1000,
+                        periodic = 2,
+                        periodicPeriod = 15 * 60 * 1000,
+                        debounce = 3,
+                        debounceDelay = 200,
+                    },
+                },
+                
+    [518010] = {
+                    app = "sonoffNode",
+--                    mode = PROD_MODE,
+                    mode = "vaio",
+                    class = "switch", type = "sonoff", location = "terrace",  
+--                    wifi = { ip = "192.168.2.27", gateway = PROD_GATEWAY, netmask = PROD_NETMASK }, 
+--                    mqttBroker = PROD_MQTT_BROKER,
+                    mqttBroker = "192.168.137.1",
+                    appCfg = {
+                        relayPin = 6;
+                        ledPin = 7;
+                        buttonPin = 3;
+                        extraPin = 5;
+                    },
+                    timer = {
+                        startup = 0,
+                        startupDelay1 = 2 * 1000,
+                        startupDelay2 = 5 * 1000,
+                        wifiLoop = 1,
+                        wifiLoopPeriod = 1 * 1000,
+                        periodic = 2,
+                        periodicPeriod = 15 * 60 * 1000,
+                        debounce = 3,
+                        debounceDelay = 500,
+                    },
+                },
+                
 
 };
 

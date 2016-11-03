@@ -11,12 +11,8 @@ local moduleName = ...;
 local M = {};
 _G [moduleName] = M;
 
-require ( "espConfig" );
-require ( "mqtt" );
-require ( "wifi" );
-require ( "adc" );
 require ( "util" );
-
+                
 -------------------------------------------------------------------------------
 --  Settings
 
@@ -76,7 +72,7 @@ local function wifiLoop ()
                         local forceUpdate = true;
                         if ( file.exists ( "old_update.url" ) ) then
                             if ( file.open ( "old_update.url" ) ) then
-                                url = file.readline ();
+                                local url = file.readline ();
                                 file.close ();
                                 if ( url and url == payload ) then
                                     print ( "[UPDATE] already updated with", payload );
@@ -123,7 +119,7 @@ local function wifiLoop ()
                 tmr.stop ( wifiLoopTimer );
 
                 print ( "[MQTT] connected to MQTT Broker" )
-                print ( "[MQTT} node=", espConfig.node.topic );
+                print ( "[MQTT] node=", espConfig.node.topic );
                 
                 -- subscribe to update topic
                 local topic = espConfig.node.topic .. "/service/update";
@@ -140,6 +136,7 @@ local function wifiLoop ()
                                 print ( "[MQTT] send <" .. version .. "> to topic=" .. espConfig.node.topic );
                                 client:publish ( espConfig.node.topic, version, 0, 1, -- ..., qos, retain
                                     function ( client )
+                                        print ( "[MQTT] send voltage" );
                                         client:publish ( espConfig.node.topic .. "/value/voltage", util.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1, -- qos, retain
                                             function ( client )
                                                 M.appNode.connect ( client, espConfig.node.topic );
@@ -185,12 +182,6 @@ end
 
 function M.start ( app )
 
-    print ( "start app heap=", node.heap () );
-    startup = nil;
-    package.loaded ["startup"] = nil;
-    collectgarbage ();
-    print ( "startup cleaned heap=", node.heap () );
-
     if ( app ) then
         initAppNode ( app );
     else
@@ -204,7 +195,6 @@ function M.start ( app )
         function () 
             print ( "[MQTT] send voltage" );
             M.client:publish ( espConfig.node.topic .. "/value/voltage", util.createJsonValueMessage ( adc.readvdd33 (), "mV" ), 0, 1 ); -- qos, retain
-            M.appNode.periodic ( M.client, espConfig.node.topic );
         end 
     );
 

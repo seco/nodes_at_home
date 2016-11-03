@@ -12,8 +12,6 @@ local moduleName = ...;
 local M = {};
 _G [moduleName] = M;
 
-require ( "util" );
-
 function M.download ( host, port, url, path, callback )
 
 --    print ( "[DL] host=", host, "port=", port, "url=", url, "path=", path );

@@ -11,18 +11,16 @@ local moduleName = ...;
 local M = {};
 _G [moduleName] = M;
 
-require ( "espConfig" );
-require ( "util" );
+require  ( "util" );
 
 -------------------------------------------------------------------------------
 --  Settings
 
-local TIME_BETWEEN_SENSOR_READINGS = 15 * 60;     -- sec
-
 ----------------------------------------------------------------------------------------
 -- private
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------
+-- public
 -- mqtt callbacks
 
 function M.connect ( client, baseTopic )
@@ -57,15 +55,15 @@ function M.connect ( client, baseTopic )
             );
         end
     );
-    
+
 end
 
 local function offline ( client )
 
     print ( "[APP] offline" );
 
-    print ( "[APP] Going to deep sleep for "..(TIME_BETWEEN_SENSOR_READINGS ).." seconds" );
-    node.dsleep ( TIME_BETWEEN_SENSOR_READINGS * 1000 * 1000 );
+    print ( "[APP] initiate alarm for closing connection in " ..  espConfig.node.timer.deepSleepDelay/1000 .. " seconds" );
+    node.dsleep ( espConfig.node.appCfg.timeBetweenSensorReadings * 1000 ); -- us
     
     return false; -- dont restart mqtt connection
     
@@ -76,9 +74,6 @@ local function message ( client, topic, payload )
     print ( "[APP] message: topic=", topic, " payload=", payload );
 
 end
-
---------------------------------------------------------------------
--- public
 
 -------------------------------------------------------------------------------
 -- main

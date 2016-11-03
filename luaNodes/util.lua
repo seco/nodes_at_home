@@ -51,7 +51,7 @@ end
 
 function M.splitTopic ( str )
 
-   return split ( str, '[\\/]+' );
+   return M.split ( str, '[\\/]+' );
    
 end
 
